@@ -1,0 +1,93 @@
+[project]
+name = "homematch-backend"
+version = "0.1.0"
+description = "HomeMatch - 北京二手房独立经纪人撮合评价平台 (后端)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "HomeMatch Team" }]
+
+dependencies = [
+    # Web framework
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.9",  # for form parsing
+
+    # Database
+    "sqlalchemy>=2.0.25",
+    "alembic>=1.13.1",
+    "psycopg2-binary>=2.9.9",  # PG driver (binary is easier for dev)
+    # "asyncpg>=0.29.0",  # async PG driver (二期再用)
+
+    # Cache + Queue
+    "redis>=5.0.1",
+    "rq>=1.16.2",
+
+    # Validation + Config
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.1",
+    "email-validator>=2.1.0",
+
+    # Auth
+    "python-jose[cryptography]>=3.3.0",  # JWT
+    "passlib[bcrypt]>=1.7.4",  # password hash (兜底用，微信登录为主)
+
+    # Crypto (敏感字段加密)
+    "cryptography>=42.0.0",
+
+    # HTTP client (call LLM, etc.)
+    "httpx>=0.27.0",
+
+    # Image
+    "pillow>=10.2.0",
+
+    # Rate limit
+    "slowapi>=0.1.9",
+
+    # Third-party
+    "firebase-admin>=6.5.0",  # FCM
+    "oss2>=2.18.4",  # 阿里云 OSS
+
+    # Utils
+    "python-slugify>=8.0.0",
+    "tenacity>=8.2.3",  # retry
+    "phonenumbers>=8.13.30",  # 手机号验证
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.27.0",  # TestClient
+    "ruff>=0.3.0",  # linter + formatter
+    "mypy>=1.8.0",  # type checker
+    "ipython>=8.20.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]  # line too long (formatter handles)
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.10"
+strict_optional = true
+warn_unused_ignores = true
+ignore_missing_imports = true

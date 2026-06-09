@@ -1,0 +1,53 @@
+version: '3.8'
+
+# 本地开发环境：PG + Redis
+# 用法：docker compose up -d
+# 关闭：docker compose down
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: homa-postgres
+    environment:
+      POSTGRES_USER: homa
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: homa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homa -d homa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: homa-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PG 管理界面（可选，访问 http://localhost:5050）
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: homa-pgadmin
+    profiles: ["tools"]  # 默认不启动，需要时用 --profile tools
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+  redisdata:

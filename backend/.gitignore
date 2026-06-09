@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Secrets
+secrets/
+*.pem
+*.p8
+*.key
+firebase-service-account.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Build
+dist/
+build/
+*.whl
+
+# Upload (开发时本地图片)
+uploads/
