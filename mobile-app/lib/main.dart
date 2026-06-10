@@ -1,4 +1,14 @@
 /// Home Match APP 入口
+///
+/// P1-0 修复（2026-06-10）：
+/// dev code 跟 user id 关系说明：
+/// - dev code 是稳定的 wechat code label（如 `dev_alice`），登录用它调
+///   `POST /v1/auth/wechat-login`，后端生成 `mock_unionid_{code[:16]}`，
+///   再去 users 表里 find_or_create
+/// - user id 由 PostgreSQL SERIAL 序列按创建顺序分配，**与 dev code 里的数字无关**
+/// - 所以 `dev_seller_7` 拿到的不一定是 user 7，可能是任何 id
+/// - 6 个稳定 dev code 由 `backend/scripts/seed_dev_users.py` 预创建，
+///   详见 `docs/05-dev-users.md`
 library;
 
 import 'package:flutter/material.dart';
@@ -11,7 +21,9 @@ import 'features/auth/auth_service.dart';
 import 'features/auth/auth_state.dart';
 
 /// 当前 dev code（可被切换）- 启动时使用，登录后从后端 dev-identities 动态获取
-String _currentDevCode = 'dev_visual_test';
+///
+/// 默认为 `dev_alice`（见 `backend/scripts/seed_dev_users.py` 的稳定 dev user 列表）
+String _currentDevCode = 'dev_alice';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

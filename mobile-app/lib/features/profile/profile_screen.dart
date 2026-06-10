@@ -279,6 +279,8 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 /// 切换器里的一张卡片：显示真实账号名（从后端拉）
+///
+/// P1-0 修复：突出显示 user_id，避免「dev_seller_7 ≠ user 7」的心智错位
 class _DevUserTile extends ConsumerWidget {
   final DevIdentity identity;
   final VoidCallback onTap;
@@ -304,18 +306,64 @@ class _DevUserTile extends ConsumerWidget {
           name: id.displayName ?? id.name ?? id.code,
           size: 36,
         ),
-        // 标题：真实 display_name
-        title: Text(
-          id.displayName ?? '用户 #${id.userId}',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        // 标题：#userId 徽章 + display_name（id 在前显眼）
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.primaryContainer,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '#${id.userId}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color.onPrimaryContainer,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                id.displayName ?? '用户',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
-        // 副标题：roleLabel · #userId · 信用 + 业务数据
-        subtitle: Text(
-          '${id.roleLabel} · #${id.userId} · 信用 ${id.creditScore.toStringAsFixed(1)} '
-          '· 需求 ${id.demandCount} / 房源 ${id.propertyCount}',
-          style: const TextStyle(fontSize: 11),
+        // 副标题：roleLabel · 信用分 · 业务数据
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            '${id.roleLabel} · 信用 ${id.creditScore.toStringAsFixed(1)} '
+            '· 需求 ${id.demandCount} / 房源 ${id.propertyCount}',
+            style: const TextStyle(fontSize: 11),
+          ),
         ),
-        trailing: const Icon(Icons.login_rounded, size: 18),
+        // 右上角再放一个 dev code 小标（hover 提示）
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Icon(Icons.login_rounded, size: 18),
+            const SizedBox(height: 2),
+            Text(
+              id.code,
+              style: TextStyle(
+                fontSize: 9,
+                color: color.onSurface.withValues(alpha: 0.5),
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
         onTap: onTap,
       ),
     );

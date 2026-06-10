@@ -132,6 +132,14 @@ async def wechat_login(
 
     if not app_id or not app_secret:
         # 开发兜底：直接用 code 当 openid
+        #
+        # P1-0 修复（2026-06-10）说明：
+        # - dev code 是稳定的 wechat code label（如 `dev_alice`）
+        # - 这里生成 `mock_unionid_{code[:16]}` 作为 users 表的查找 key
+        # - user.id 由 PostgreSQL SERIAL 序列按创建顺序分配，**与 dev code 数字无关**
+        # - 所以 `dev_seller_7` 拿到的可能是 user 17 或任何 id（取决于 DB 历史）
+        # - 6 个稳定 dev user 由 `backend/scripts/seed_dev_users.py` 预创建，
+        #   详见 `docs/05-dev-users.md`
         logger.warning(
             "WeChat app_id/secret not configured, using mock openid",
             extra={"code_prefix": body.code[:16]},
