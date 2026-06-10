@@ -125,6 +125,8 @@ async def get_invitation(
     inv = db.get(Invitation, inv_id)
     if not inv or inv.deleted_at:
         raise NotFoundError("邀请不存在")
+    if user.id not in (inv.buyer_id, inv.seller_id):
+        raise PermissionDeniedError("只能查看自己参与的合作")
     return APIResponse(data=InvitationResponse.model_validate(inv))
 
 

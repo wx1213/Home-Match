@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.agents.matcher import find_top_sellers
 from app.core.database import get_db
 from app.domains.auth.dependencies import get_current_user
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, PermissionDeniedError
 from app.core.logging import get_logger
 from app.core.redis_client import recommendation_cache_key, redis_client
 from app.models.demand import Demand, DemandStatus

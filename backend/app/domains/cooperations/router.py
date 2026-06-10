@@ -120,6 +120,8 @@ async def get_cooperation(
     coop = db.get(Cooperation, coop_id)
     if not coop or coop.deleted_at:
         raise NotFoundError("合作不存在")
+    if user.id not in (coop.buyer_id, coop.seller_id):
+        raise PermissionDeniedError("只能查看自己参与的合作")
     return APIResponse(data=CooperationResponse.model_validate(coop))
 
 

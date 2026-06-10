@@ -180,4 +180,4 @@ RD/
 
 ## License
 
-MIT
+Proprietary — © HomeMatch Team. All rights reserved.
