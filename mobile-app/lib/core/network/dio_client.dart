@@ -6,11 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../auth/auth_event_bus.dart';
+import '../env/app_env.dart';
 import 'auth_interceptor.dart';
 
-/// API base URL
-/// iOS 模拟器/Android 模拟器访问宿主 localhost 都用这个
-const String kApiBaseUrl = 'http://localhost:8000';
+/// API base URL（从 AppEnv 编译时注入，兼容旧代码引用）
+///
+/// P2-1/2 修复：原硬编码 localhost:8000，现通过 --dart-define=API_BASE_URL=...
+/// 在打包时注入。生产环境必须覆盖。
+const String kApiBaseUrl = AppEnv.apiBaseUrl;
 
 /// Token 存储（Secure Storage）
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {

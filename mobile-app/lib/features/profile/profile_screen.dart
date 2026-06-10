@@ -9,6 +9,7 @@ import '../auth/auth_state.dart';
 import '../auth/user_service.dart';
 import '../../core/router/app_router.dart';
 import '../../core/network/dio_client.dart';
+import '../../core/env/app_env.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/widgets/credit_badge.dart';
 import '../../core/widgets/status_chip.dart';
@@ -28,11 +29,13 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('我的'),
         actions: [
-          IconButton(
-            tooltip: '切换身份（开发模式）',
-            icon: const Icon(Icons.bug_report_outlined),
-            onPressed: () => _showDevSwitcher(context, ref),
-          ),
+          // P2-3：dev 模式才显示切换器按钮（生产隐藏）
+          if (AppEnv.enableDevLogin)
+            IconButton(
+              tooltip: '切换身份（开发模式）',
+              icon: const Icon(Icons.bug_report_outlined),
+              onPressed: () => _showDevSwitcher(context, ref),
+            ),
           IconButton(
             tooltip: '退出登录',
             icon: const Icon(Icons.logout_rounded),

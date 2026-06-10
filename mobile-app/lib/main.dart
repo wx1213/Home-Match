@@ -9,12 +9,19 @@
 /// - 所以 `dev_seller_7` 拿到的不一定是 user 7，可能是任何 id
 /// - 6 个稳定 dev code 由 `backend/scripts/seed_dev_users.py` 预创建，
 ///   详见 `docs/05-dev-users.md`
+///
+/// P2-1/2/3 修复（2026-06-10）：
+/// - dev 模式相关功能（自动登录、切换器）受 `AppEnv.enableDevLogin` 守卫
+/// - 生产构建必须传 `--dart-define=ENABLE_DEV_LOGIN=false --dart-define=PRODUCTION=true`
+/// - API base URL 走 `--dart-define=API_BASE_URL=...`，默认 localhost:8000
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/env/app_env.dart';
 import 'core/router/app_router.dart';
 import 'core/network/dio_client.dart';
 import 'features/auth/auth_service.dart';
@@ -27,17 +34,28 @@ String _currentDevCode = 'dev_alice';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 启动自动登录（开发模式用 _currentDevCode）：
-  // - 优先用上次保存的 dev code（让用户切身份后能继续）
-  // - 兜底用 _currentDevCode（首次安装 / 清存储后）
-  final container = ProviderContainer();
-  final storage = container.read(secureStorageProvider);
-  final savedCode = await storage.read(key: 'last_dev_code');
-  if (savedCode != null && savedCode.isNotEmpty) {
-    _currentDevCode = savedCode;
+
+  // P2-1：启动横幅（仅 debug 模式可见，生产静默）
+  if (kDebugMode && AppEnv.verboseDevLog) {
+    debugPrint('[HomeMatch] env: ${AppEnv.summary}');
   }
-  // 总是尝试自动登录（dev 模式无 token 也能用 mock 登录）
-  await _doLogin(container, _currentDevCode);
+
+  final container = ProviderContainer();
+
+  // P2-3：dev 自动登录守卫
+  // - AppEnv.enableDevLogin = true（默认 dev）：走原自动登录流程
+  // - AppEnv.enableDevLogin = false（生产）：跳过，进登录页让用户用真实微信/Apple 登录
+  if (AppEnv.enableDevLogin) {
+    final storage = container.read(secureStorageProvider);
+    final savedCode = await storage.read(key: 'last_dev_code');
+    if (savedCode != null && savedCode.isNotEmpty) {
+      _currentDevCode = savedCode;
+    }
+    await _doLogin(container, _currentDevCode);
+  } else if (kDebugMode) {
+    debugPrint('[HomeMatch] dev login disabled (production build)');
+  }
+
   runApp(
     UncontrolledProviderScope(
       container: container,
@@ -72,6 +90,15 @@ Future<void> _doLogin(ProviderContainer container, String code) async {
 }
 
 /// 切换登录用户（暴露给 UI 调用）
+///
+/// P2-3：生产构建（`AppEnv.enableDevLogin = false`）下 no-op，
+/// 防止误调用把生产用户切到 dev 身份。
 Future<void> switchDevUser(ProviderContainer container, String code) async {
+  if (!AppEnv.enableDevLogin) {
+    if (kDebugMode) {
+      debugPrint('[HomeMatch] switchDevUser ignored: dev login disabled');
+    }
+    return;
+  }
   await _doLogin(container, code);
 }
