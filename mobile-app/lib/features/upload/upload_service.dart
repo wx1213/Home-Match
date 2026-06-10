@@ -58,7 +58,13 @@ class UploadService {
   /// 压缩图片（P0：单边最长 1600px，质量 80%）
   /// - 避免大图上传失败 / 太慢
   /// - 单图压后通常 < 1MB
-  Future<XFile> compress(XFile file, {int maxWidth = 1600, int quality = 80}) async {
+  /// - 返 (bytes, filename) 元组：直接给 MultipartFile.fromBytes 用
+  Future<(Uint8List, String)> compress(
+    XFile file, {
+    int maxWidth = 1600,
+    int quality = 80,
+  }) async {
+    final filename = file.name.replaceAll(RegExp(r'\.\w+$'), '.jpg');
     try {
       final bytes = await file.readAsBytes();
       final result = await FlutterImageCompress.compressWithList(
@@ -68,29 +74,22 @@ class UploadService {
         quality: quality,
         format: CompressFormat.jpeg,
       );
-      // 写回临时文件（保持 XFile API 兼容）
-      final tempPath = '${file.path}.compressed.jpg';
-      final compressed = XFile.fromData(
-        result,
-        path: tempPath,
-        name: file.name.replaceAll(RegExp(r'\.\w+$'), '.jpg'),
-        mimeType: 'image/jpeg',
-      );
-      return compressed;
+      return (result, filename);
     } catch (e) {
       // 压缩失败：返回原图
       debugPrint('[upload] compress failed: $e, using original');
-      return file;
+      final bytes = await file.readAsBytes();
+      return (bytes, filename);
     }
   }
 
   /// 单张上传（multipart）
   Future<UploadResult> uploadOne(XFile file) async {
-    final compressed = await compress(file);
+    final (bytes, filename) = await compress(file);
     final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        compressed.path,
-        filename: compressed.name,
+      'file': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
       ),
     });
     final resp = await _dio.post('/v1/upload/image', data: formData);
@@ -106,17 +105,13 @@ class UploadService {
     // 压缩所有
     final compressed = await Future.wait(files.map((f) => compress(f)));
 
-    // 构造 multipart
-    final fields = <MapEntry<String, MultipartFile>>[];
-    for (final f in compressed) {
-      fields.add(MapEntry(
-        'files',
-        await MultipartFile.fromFile(f.path, filename: f.name),
-      ));
-    }
+    // 构造 multipart（用 fromBytes 避免 XFile.fromData 路径不存在问题）
     final formData = FormData.fromMap({});
-    for (final e in fields) {
-      formData.files.add(e);
+    for (final (bytes, filename) in compressed) {
+      formData.files.add(MapEntry(
+        'files',
+        MultipartFile.fromBytes(bytes, filename: filename),
+      ));
     }
 
     final resp = await _dio.post('/v1/upload/images', data: formData);
