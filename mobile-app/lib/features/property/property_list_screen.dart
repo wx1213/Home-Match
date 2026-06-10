@@ -1,6 +1,7 @@
 /// 我的房源 - 卡片式设计
 library;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -182,28 +183,15 @@ class _PropertyCard extends StatelessWidget {
             // 顶部图 + 状态徽章
             Stack(
               children: [
-                // 图片占位
-                Container(
-                  height: 140,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        color.primary.withValues(alpha: 0.4),
-                        color.primary.withValues(alpha: 0.15),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(HMRadius.lg),
-                    ),
+                // P0：显示第一张房源图（无图时降级渐变占位）
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(HMRadius.lg),
                   ),
-                  child: Center(
-                    child: Icon(
-                      Icons.home_rounded,
-                      size: 56,
-                      color: Colors.white.withValues(alpha: 0.7),
-                    ),
+                  child: SizedBox(
+                    height: 140,
+                    width: double.infinity,
+                    child: _buildCoverImage(property, color),
                   ),
                 ),
                 // 状态徽章
@@ -328,6 +316,62 @@ class _PropertyCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 顶部封面图：有图显示第一张，无图降级渐变占位
+  Widget _buildCoverImage(Property property, ColorScheme color) {
+    final first = property.images.isNotEmpty ? property.images.first : null;
+    if (first == null || first.isEmpty) {
+      // 无图：渐变 + home 图标
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              color.primary.withValues(alpha: 0.4),
+              color.primary.withValues(alpha: 0.15),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.home_rounded,
+            size: 56,
+            color: Colors.white.withValues(alpha: 0.7),
+          ),
+        ),
+      );
+    }
+    // 有图：CachedNetworkImage + 渐变占位
+    return CachedNetworkImage(
+      imageUrl: first,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              color.primary.withValues(alpha: 0.3),
+              color.primary.withValues(alpha: 0.1),
+            ],
+          ),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+          ),
+        ),
+      ),
+      errorWidget: (_, __, ___) => Container(
+        decoration: BoxDecoration(
+          color: color.surfaceContainerHighest,
+        ),
+        child: const Center(
+          child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
         ),
       ),
     );
