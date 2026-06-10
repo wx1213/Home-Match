@@ -249,20 +249,33 @@ List<Widget> _buildInvSection({
   ];
 }
 
-class _OverviewBar extends StatelessWidget {
+class _OverviewBar extends ConsumerWidget {
   final List<Invitation> pendingInvs;
   final List<Cooperation> activeCoops;
   const _OverviewBar({required this.pendingInvs, required this.activeCoops});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 待评价/需我处理：必须是参与者（buyer 或 seller），且"我"还没评价
+    // —— 对方没评的不算我的待办（避免"对方没评"显示成"我有 1 个待办"的假象）
+    final myId = ref.read(authProvider).userId;
+    int needReviewByMe() {
+      var n = 0;
+      for (final c in activeCoops) {
+        final iAmBuyer = c.buyerId == myId;
+        final iAmSeller = c.sellerId == myId;
+        if (!iAmBuyer && !iAmSeller) continue;
+        final iHaveReviewed = iAmBuyer ? c.buyerReviewed : c.sellerReviewed;
+        if (!iHaveReviewed) n++;
+      }
+      return n;
+    }
+
     final pendingCount = pendingInvs.length;
     final proposalCount =
         pendingInvs.where((i) => i.status == 'proposal_review').length;
     final coopsCount = activeCoops.length;
-    final needReview = activeCoops
-        .where((c) => !(c.buyerReviewed && c.sellerReviewed))
-        .length;
+    final needReview = needReviewByMe();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
