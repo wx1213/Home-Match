@@ -170,6 +170,16 @@ Authorization: Bearer <access_token>
     # === 路由 ===
     app.include_router(api_router)
 
+    # === 静态文件（本地 upload 模式） ===
+    # P0: 上传图片存到 upload_dir，通过 /uploads/<filename> 访问
+    if settings.upload_mode == "local":
+        from pathlib import Path
+        from fastapi.staticfiles import StaticFiles
+        upload_path = Path(settings.upload_dir).resolve()
+        upload_path.mkdir(parents=True, exist_ok=True)
+        app.mount("/uploads", StaticFiles(directory=str(upload_path)), name="uploads")
+        logger.info("Local upload mount", extra={"path": str(upload_path)})
+
     # === 根路径 ===
     @app.get("/", response_model=APIResponse, tags=["元信息"], summary="服务信息")
     async def root():

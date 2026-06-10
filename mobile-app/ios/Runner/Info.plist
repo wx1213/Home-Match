@@ -53,6 +53,13 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- P0: 房源图片选择权限（image_picker 必需） -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>选择房源实勘图（用于发布/编辑房源）</string>
+	<key>NSCameraUsageDescription</key>
+	<string>拍摄房源实勘图（用于发布/编辑房源）</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>保存房源图片到相册</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

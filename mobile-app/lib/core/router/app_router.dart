@@ -107,6 +107,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (_, state) => PropertyDetailScreen(
                       propertyId: int.parse(state.pathParameters['id']!),
                     ),
+                    routes: [
+                      // P0 编辑路由
+                      GoRoute(
+                        path: 'edit',
+                        builder: (_, state) => PropertyFormScreen(
+                          propertyId: int.parse(state.pathParameters['id']!),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

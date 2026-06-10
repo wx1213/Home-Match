@@ -93,3 +93,4 @@ _inbox/
 # P1-3 test artifacts
 backend/tests/_test_home_match.db
 backend/tests/_test_home_match.db-journal
+backend/uploads/

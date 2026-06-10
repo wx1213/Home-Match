@@ -93,6 +93,20 @@ class Settings(BaseSettings):
     oss_bucket: str = "hmatch-dev"
     oss_sts_role_arn: str = ""
 
+    # === 文件上传（P0：房源/头像）===
+    # 模式：local（开发，存到本地目录） / oss（生产，存到阿里云 OSS）
+    upload_mode: Literal["local", "oss"] = "local"
+    # 本地模式：上传目录（绝对路径；不存在自动建）
+    upload_dir: str = "./uploads"
+    # OSS 模式：CDN 域名（用于拼接 URL；空字符串走 oss_endpoint）
+    upload_cdn_base: str = ""
+    # 限制：单文件最大 8MB（与 APP 端压缩后大小匹配）
+    max_upload_size_mb: int = 8
+    # 允许的 MIME 类型（白名单）
+    upload_allowed_types: list[str] = Field(
+        default_factory=lambda: ["image/jpeg", "image/png", "image/webp", "image/heic"]
+    )
+
     # === LLM ===
     llm_provider: Literal["deepseek", "claude", "openai", "minimax"] = "minimax"
     deepseek_api_key: str = ""
