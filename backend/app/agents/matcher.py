@@ -21,7 +21,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
-from app.core.redis_client import recommendation_cache_key, redis_client
+from app.core.redis_client import recommendation_cache_key, safe_get, safe_setex
 from app.models.demand import Demand
 from app.models.invitation import Invitation, InvitationStatus
 from app.models.property import Property, PropertyStatus
@@ -87,9 +87,9 @@ def find_top_sellers(
     Returns:
         [{"rank": 1, "match_score": 0.92, "seller": {...}, "properties": [...]}, ...]
     """
-    # 1. 查缓存
+    # 1. 查缓存（P1-4 修复：用 safe_get，Redis 不可用时返 None，降级到实时计算）
     cache_key = recommendation_cache_key(demand.id)
-    cached = redis_client.get(cache_key)
+    cached = safe_get(cache_key)
     if cached:
         import json
         try:
@@ -180,11 +180,8 @@ def find_top_sellers(
             ],
         })
 
-    # 7. 写缓存
+    # 7. 写缓存（P1-4 修复：用 safe_setex，Redis 不可用时静默失败，不影响推荐结果）
     import json
-    try:
-        redis_client.setex(cache_key, CACHE_TTL, json.dumps(output, default=str))
-    except Exception as e:
-        logger.warning("Failed to cache recommendations", extra={"error": str(e)})
+    safe_setex(cache_key, CACHE_TTL, json.dumps(output, default=str))
 
     return output
