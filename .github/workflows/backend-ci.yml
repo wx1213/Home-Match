@@ -76,4 +76,5 @@ jobs:
         run: |
           source .venv/bin/activate
           rm -f _test_ci.db
-          pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=short \
+            --cov=app --cov-branch --cov-report=term --cov-fail-under=60
