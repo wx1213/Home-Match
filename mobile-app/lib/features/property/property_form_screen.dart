@@ -20,6 +20,11 @@ import '../upload/upload_service.dart';
 import 'property_models.dart';
 import 'property_service.dart';
 
+/// 户型枚举 - 与后端 seed 数据 + 后端 schema 保持一致
+const List<String> kLayoutOptions = [
+  '1室1厅', '2室1厅', '2室2厅', '3室1厅', '3室2厅', '4室+',
+];
+
 class PropertyFormScreen extends ConsumerStatefulWidget {
   /// 编辑模式传 propertyId；null = 创建
   final int? propertyId;
@@ -53,6 +58,17 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
 
   bool get _isEdit => widget.propertyId != null;
 
+  /// 把任意 layout 字符串 sanitize 到 kLayoutOptions 之一
+  /// 防止后端返回脏数据（如 "2室2厅" / "4室2厅" 不在选项里）时 dropdown 断言失败
+  String _sanitizeLayout(String? raw) {
+    if (raw == null) return kLayoutOptions.first;
+    if (kLayoutOptions.contains(raw)) return raw;
+    // 模糊匹配：把不识别的值归到最接近的选项
+    if (raw.contains('4')) return '4室+';
+    if (raw.contains('1厅')) return '2室1厅';
+    return kLayoutOptions.first;
+  }
+
   @override
   void dispose() {
     _communityCtl.dispose();
@@ -77,7 +93,7 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
         _communityCtl.text = p.community;
         _areaCtl.text = p.area.toString();
         _priceCtl.text = (p.totalPrice / 10000).toString();
-        _layout = p.layout;
+        _layout = _sanitizeLayout(p.layout);
         _viewingTime = p.viewingTime;
         _tags
           ..clear()
@@ -272,7 +288,7 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
                     DropdownButtonFormField<String>(
                       initialValue: _layout,
                       decoration: const InputDecoration(labelText: '户型'),
-                      items: ['1室1厅', '2室1厅', '3室1厅', '3室2厅', '4室+']
+                      items: kLayoutOptions
                           .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                           .toList(),
                       onChanged: (v) => setState(() => _layout = v!),
