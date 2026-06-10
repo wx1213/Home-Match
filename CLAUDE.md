@@ -255,6 +255,22 @@
 
 **重点验证**：匹配效率 + 合作闭环 + 用户留存。
 
+### P1/P2 已完成（2026-06-10）
+
+| 任务 | 说明 | 文档 |
+|---|---|---|
+| **P1-0** | 6 个稳定 dev code（dev_alice/bob/carol/dave/eve/zach）+ seed 脚本 + UI #userId 徽章 | [docs/05-dev-users.md](./docs/05-dev-users.md) |
+| **P1-1** | 测试稳定性（sms-code Redis 解耦 + widget_test Timer fix） | — |
+| **P1-3** | 16 个越权测试矩阵 + 4 个 model/code 修复 | — |
+| **P1-4** | safe_get/safe_setex + 4 个 Redis 降级测试 | — |
+| **P1-5** | InvalidStateTransitionError + 全局 MachineError handler + 9 个状态机测试 | — |
+| **P2-1+2+3** | AppEnv + --dart-define 注入 + dev 守卫（生产隐藏 🐛 切换器） | [docs/06-flavor-env.md](./docs/06-flavor-env.md) |
+| **P2-4** | GitHub Actions backend/flutter CI + ruff 收紧 | [docs/07-ci-pipeline.md](./docs/07-ci-pipeline.md) |
+| **P2-5** | 删 schemas/ + prototypes/ 空目录 | — |
+| **P2-6** | pytest-cov 60% 门控 + credit_score 10 个单测 | [docs/08-testing-coverage.md](./docs/08-testing-coverage.md) |
+
+**关键指标**：44 后端测试 + 6 前端测试 / 66% 后端覆盖率 / CI 双轨已就位
+
 ---
 
 ## 目录约定（建议，v0.3）
@@ -269,7 +285,9 @@ RD/
 │   ├── 03-api-spec.md           ← API 规范 v0.1
 │   ├── 04-ui-ux-guidelines.md   ← UI/UX 设计规范 v0.1
 │   ├── 05-dev-users.md          ← 6 个稳定 dev code（dev 切换器用）
-│   └── 06-flavor-env.md         ← Flutter env/env 注入（生产构建用）
+│   ├── 06-flavor-env.md         ← Flutter env 注入（生产构建用）
+│   ├── 07-ci-pipeline.md        ← GitHub Actions CI 配置
+│   └── 08-testing-coverage.md   ← 测试矩阵 + 覆盖率分布
 ├── .github/workflows/           ← CI（P2-4 引入）
 │   ├── backend-ci.yml
 │   └── flutter-ci.yml
