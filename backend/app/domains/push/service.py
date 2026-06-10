@@ -86,7 +86,7 @@ class PushService:
         priority: PushPriority = PushPriority.NORMAL,
     ) -> int:
         """给用户的所有活跃设备发推送。返回成功数。"""
-        devices = db.scalars if False else self.db.scalars  # type: ignore
+        devices = self.db.scalars
         devices = self.db.scalars(
             select(Device).where(
                 Device.user_id == user_id,
@@ -129,7 +129,7 @@ class PushTriggers:
         await self.service.push_to_user(
             user_id=invitation.seller_id,
             title="📩 收到新的合作邀请",
-            body=f"有经纪人邀请您合作，请于 24 小时内响应",
+            body="有经纪人邀请您合作，请于 24 小时内响应",
             data={"type": "new_invitation", "invitation_id": str(invitation.id)},
             priority=PushPriority.HIGH,
         )

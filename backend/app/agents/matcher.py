@@ -14,10 +14,9 @@ MVP 阶段：基于规则打分（区域 + 价格 + 户型 + 信用分 + 活跃�
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger

@@ -267,11 +267,13 @@ RD/
 │   ├── 01-requirements.md       ← 需求总文档 v0.3
 │   ├── 02-architecture.md       ← 架构设计 v0.1
 │   ├── 03-api-spec.md           ← API 规范 v0.1
-│   └── 04-ui-ux-guidelines.md   ← UI/UX 设计规范 v0.1
-├── schemas/                     ← 数据库 schema、迁移（待生成）
-│   └── 001_init.sql
-├── prototypes/                  ← 页面原型（待生成，可用 Figma 替代）
-├── backend/                     ← 后端代码（待初始化，FastAPI）
+│   ├── 04-ui-ux-guidelines.md   ← UI/UX 设计规范 v0.1
+│   ├── 05-dev-users.md          ← 6 个稳定 dev code（dev 切换器用）
+│   └── 06-flavor-env.md         ← Flutter env/env 注入（生产构建用）
+├── .github/workflows/           ← CI（P2-4 引入）
+│   ├── backend-ci.yml
+│   └── flutter-ci.yml
+├── backend/                     ← 后端代码（FastAPI）
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── core/                ← 配置、日志、依赖、加密

@@ -1,0 +1,79 @@
+# HomeMatch Backend CI (P2-4 引入)
+#
+# 触发：main 分支 push + PR + 手动 dispatch
+# 步骤：
+#   1. checkout
+#   2. setup Python 3.11 + cache pip
+#   3. install uv
+#   4. install dev deps (含 ruff/mypy/pytest/pytest-asyncio/pytest-cov)
+#   5. ruff check (lint)
+#   6. mypy app/ (type check, MVP 阶段仅警告)
+#   7. pytest (unit + integration tests)
+#
+# 注：CI 不依赖真实 PG/Redis（测试用 SQLite + Redis 单测 mock）
+
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Create venv + install dev deps
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+          uv pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: |
+          source .venv/bin/activate
+          ruff check .
+
+      - name: Mypy type check (non-blocking for MVP)
+        run: |
+          source .venv/bin/activate
+          mypy app/ || echo "::warning::Mypy found issues, see log. MVP 阶段不 fail CI"
+        continue-on-error: true
+
+      - name: Pytest
+        env:
+          APP_ENV: development
+          APP_DEBUG: "true"
+          DATABASE_URL: sqlite:///./_test_ci.db
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-32-chars-minimum-please-ok
+          SMS_PROVIDER: mock
+          PHONE_ENCRYPTION_KEY: base64:dGVzdC1rZXktMzItYnl0ZXMtZm9yLXRlc3Q=
+          PHONE_HASH_KEY: test-hash-key-for-unit-tests
+        run: |
+          source .venv/bin/activate
+          rm -f _test_ci.db
+          pytest tests/ -v --tb=short

@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.domains.auth.dependencies import get_current_user
 from app.core.errors import NotFoundError, PermissionDeniedError
 from app.core.logging import get_logger
+from app.domains.auth.dependencies import get_current_user
 from app.models.property import Property, PropertyStatus
 from app.models.user import User
 from app.schemas.business import (

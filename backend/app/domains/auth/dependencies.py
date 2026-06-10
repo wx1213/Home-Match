@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.errors import InvalidTokenError, TokenExpiredError
+from app.core.errors import InvalidTokenError
 from app.core.logging import get_logger
 from app.core.security import decode_token
 from app.models.user import User

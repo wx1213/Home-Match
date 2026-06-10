@@ -15,8 +15,8 @@ from app.models.cooperation import Cooperation, CooperationStatus
 from app.models.demand import Demand, DemandStatus
 from app.models.device import Device
 from app.models.invitation import Invitation, InvitationStatus
-from app.models.proposal import Proposal
 from app.models.property import Property, PropertyStatus
+from app.models.proposal import Proposal
 from app.models.review import Review
 from app.models.user import User, UserStatus
 

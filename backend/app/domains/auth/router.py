@@ -16,6 +16,7 @@ from app.core.errors import InvalidTokenError
 from app.core.logging import get_logger
 from app.core.ratelimit import get_limiter
 from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.domains.auth.mock_names import generate_mock_name
 from app.domains.auth.schemas import (
     AppleLoginRequest,
     LoginResponse,
@@ -27,7 +28,6 @@ from app.domains.auth.schemas import (
     WechatLoginRequest,
 )
 from app.domains.auth.service import SmsService, UserService
-from app.domains.auth.mock_names import generate_mock_name
 from app.models.user import User, UserStatus
 from app.schemas.common import APIResponse
 
@@ -182,7 +182,7 @@ async def wechat_login(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="微信服务暂时不可用",
-            )
+            ) from e
 
     # 2. 查找或创建用户
     sms = SmsService(None)  # wechat 登录不调 sms

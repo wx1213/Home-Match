@@ -29,7 +29,6 @@ from app.core.database import SessionLocal  # noqa: E402
 from app.domains.auth.mock_names import generate_mock_name  # noqa: E402
 from app.models.user import User, UserStatus  # noqa: E402
 
-
 # ============================================================
 #  6 个稳定 dev 用户定义
 # ============================================================
@@ -215,7 +214,7 @@ def main() -> int:
             n = wipe_all_mock_users(db)
             print(f"  删掉 {n} 个 mock user")
         else:
-            print(f"\n[1/2] 跳过 wipe（传 --wipe 才清）。")
+            print("\n[1/2] 跳过 wipe（传 --wipe 才清）。")
 
         print(f"\n[2/2] seed {len(DEV_USERS)} 个 dev user...")
         results = []

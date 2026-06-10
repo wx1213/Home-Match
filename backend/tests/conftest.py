@@ -24,14 +24,14 @@ os.environ.setdefault("PHONE_HASH_KEY", "test-hash-key-for-unit-tests")
 import pytest
 from fastapi.testclient import TestClient
 
-from app.domains.auth.router import get_sms_service
-from app.domains.auth.schemas import SmsCodeResponse
-from app.main import create_app
 from app.core.errors import (
     InvalidSmsCodeError,
     SmsCodeExpiredError,
     SmsSendError,
 )
+from app.domains.auth.router import get_sms_service
+from app.domains.auth.schemas import SmsCodeResponse
+from app.main import create_app
 
 
 class _InMemorySmsService:
@@ -51,17 +51,19 @@ class _InMemorySmsService:
         return f"{secrets.randbelow(10000):04d}"
 
     async def send_code(self, phone: str, purpose: str = "login") -> SmsCodeResponse:
+        import time as _t
+
         from app.core.crypto import hash_phone
         from app.core.redis_client import sms_code_key, sms_rate_limit_key
-        import time as _t
 
         phone_h = hash_phone(phone)
         rate_key = sms_rate_limit_key(phone_h)
 
         # 限流：60s 重发限制（简化：用 last_sent 字典代替 redis.get）
-        if rate_key + ":last" in self._last_sent:
-            if _t.time() - self._last_sent[rate_key + ":last"] < 60:
-                raise SmsSendError("请 60 秒后再试")
+        if rate_key + ":last" in self._last_sent and (
+            _t.time() - self._last_sent[rate_key + ":last"] < 60
+        ):
+            raise SmsSendError("请 60 秒后再试")
 
         # 限流：每小时最多 5 次
         count = self._counts.get(rate_key, 0) + 1

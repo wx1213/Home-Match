@@ -6,12 +6,14 @@ from enum import Enum
 from sqlalchemy import (
     JSON,
     DateTime,
-    Enum as SQLEnum,
     Float,
     ForeignKey,
     Index,
     Integer,
     String,
+)
+from sqlalchemy import (
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 

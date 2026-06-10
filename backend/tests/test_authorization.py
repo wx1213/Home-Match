@@ -43,7 +43,6 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.security import create_access_token
 from app.models.user import User, UserStatus
 
-
 # ============================================================
 #  Fixtures
 # ============================================================
@@ -61,8 +60,8 @@ def create_tables():
         cooperation,
         demand,
         invitation,
-        proposal,
         property,
+        proposal,
         review,
         user,
     )

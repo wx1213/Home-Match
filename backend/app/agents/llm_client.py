@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from enum import Enum
@@ -95,7 +94,7 @@ class LLMClient:
     def __init__(self):
         self.provider = settings.llm_provider
         self.timeout = 30.0
-        
+
         # 根据 provider 选择配置
         if self.provider == "minimax":
             self.base_url = settings.minimax_base_url
@@ -114,7 +113,7 @@ class LLMClient:
             self.base_url = settings.deepseek_base_url
             self.api_key = settings.deepseek_api_key
             self.group_id = ""
-        
+
         # 兼容：base_url 可能包含 /v1，也可能不包含
         self.base_url_normalized = self.base_url.rstrip('/')
         if self.base_url_normalized.endswith('/v1'):
@@ -155,7 +154,7 @@ class LLMClient:
             return self._mock_response(task, messages)
 
         model = self._get_model_for_task(task)
-        
+
         # 根据 provider 构建不同的请求参数
         if self.provider == "minimax":
             # Minimax API 格式
@@ -197,7 +196,7 @@ class LLMClient:
                     )
                     raise LLMError(f"LLM API error: {resp.status_code}")
                 data = resp.json()
-                
+
                 # 解析响应（不同 provider 响应格式不同）
                 if self.provider == "minimax":
                     content = data.get("reply", "")
@@ -224,7 +223,7 @@ class LLMClient:
                 return content
         except httpx.HTTPError as e:
             logger.error("LLM call failed", extra={"error": str(e)})
-            raise LLMError(f"AI 服务调用失败: {e}")
+            raise LLMError(f"AI 服务调用失败: {e}") from e
 
     async def complete_json(
         self,
@@ -251,7 +250,7 @@ class LLMClient:
                 "LLM JSON parse failed",
                 extra={"raw_content": content[:200], "cleaned": content_clean[:200]},
             )
-            raise LLMError(f"AI 响应非合法 JSON: {e}")
+            raise LLMError(f"AI 响应非合法 JSON: {e}") from e
 
     def _mock_response(self, task: LLMTask, messages: list[dict[str, str]]) -> str:
         """Mock 响应（无 API key 时使用，方便本地开发）。"""

@@ -1,0 +1,52 @@
+# HomeMatch Flutter CI (P2-4 引入)
+#
+# 触发：main 分支 push + PR + 手动 dispatch
+# 步骤：
+#   1. checkout
+#   2. setup Flutter stable
+#   3. flutter pub get
+#   4. flutter analyze
+#   5. flutter test
+
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile-app/**"
+      - ".github/workflows/flutter-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "mobile-app/**"
+  workflow_dispatch:
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.1"
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test

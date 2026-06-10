@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.domains.auth.dependencies import get_current_user
 from app.core.errors import (
     InvalidStateTransitionError,
     NotFoundError,
@@ -17,10 +16,11 @@ from app.core.errors import (
     ValidationError,
 )
 from app.core.logging import get_logger
+from app.domains.auth.dependencies import get_current_user
 from app.domains.invitations.state_machine import InvitationStateMachine
-from app.models.invitation import Invitation, InvitationStatus
-from app.models.user import User
+from app.models.invitation import Invitation
 from app.models.proposal import Proposal
+from app.models.user import User
 from app.schemas.business import ProposalCreate, ProposalResponse
 from app.schemas.common import APIResponse
 

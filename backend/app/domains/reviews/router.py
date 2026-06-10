@@ -17,7 +17,6 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
 from app.domains.reviews.credit_score import (
-    compute_credit_score,
     update_user_credit_score,
 )
 from app.models.cooperation import Cooperation, CooperationStatus

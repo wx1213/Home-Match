@@ -12,7 +12,8 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, Float, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base

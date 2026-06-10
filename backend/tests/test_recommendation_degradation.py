@@ -21,7 +21,6 @@ from sqlalchemy import text
 from app.core.database import Base, SessionLocal, engine
 from app.models.user import User, UserStatus
 
-
 # ============================================================
 #  Fixtures
 # ============================================================
@@ -32,8 +31,8 @@ def create_tables():
         cooperation,
         demand,
         invitation,
-        proposal,
         property,
+        proposal,
         review,
         user,
     )

@@ -80,6 +80,17 @@ target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]  # line too long (formatter handles)
 
+[tool.ruff.lint.per-file-ignores]
+# P2-4: FastAPI 约定「argument defaults call」（Depends()）不能改；
+# E402 在 tests/ 里 sys.path 注入 + app/ 里 docstring-then-import 模式正常存在
+"app/domains/**/router.py" = ["B008"]
+"app/domains/**/dependencies.py" = ["B008"]
+"app/agents/llm_router.py" = ["B008"]
+"app/**/*.py" = ["E402"]
+"tests/**" = ["B008", "E402", "F401", "N802"]
+"scripts/**" = ["N806", "F841"]  # e2e 脚本用 H_BUYER 这种 ALL_CAPS 表示 headers
+"alembic/**/*.py" = ["E402", "F401", "B008"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -91,3 +102,6 @@ python_version = "3.10"
 strict_optional = true
 warn_unused_ignores = true
 ignore_missing_imports = true
+# P2-4：MVP 阶段先 type-check 跑通但不 fail CI，新代码必须 mypy clean
+# 后续逐步把 ignore_errors 收紧到 0
+ignore_errors = false

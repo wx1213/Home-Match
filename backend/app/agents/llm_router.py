@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.agents.llm_client import (
     analyze_review,
@@ -15,7 +12,6 @@ from app.agents.llm_client import (
     get_budget_status,
     llm_client,
 )
-from app.core.database import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import APIResponse

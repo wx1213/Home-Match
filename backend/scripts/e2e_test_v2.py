@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 
-from app.core.config import settings
 from app.core.crypto import encrypt_phone, hash_phone
 from app.core.database import SessionLocal
 from app.models.user import User, UserStatus
@@ -248,9 +247,9 @@ def main():
         print("\n[Step 13] 验证最终数据（DB 查询）...")
         with SessionLocal() as db:
             from sqlalchemy import select
+
             from app.models.cooperation import Cooperation
             from app.models.invitation import Invitation, InvitationStatus
-            from app.models.proposal import Proposal
             from app.models.review import Review
             from app.models.user import User
 

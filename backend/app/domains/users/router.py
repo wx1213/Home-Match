@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
@@ -128,7 +126,7 @@ async def get_my_stats(
 
 @router.get(
     "/batch",
-    response_model=APIResponse[List[UserPublicBrief]],
+    response_model=APIResponse[list[UserPublicBrief]],
     summary="批量查询用户公开名片",
 )
 async def batch_get_users(
@@ -138,7 +136,7 @@ async def batch_get_users(
         examples=["1,2,3"],
     ),
     db: Session = Depends(get_db),
-) -> APIResponse[List[UserPublicBrief]]:
+) -> APIResponse[list[UserPublicBrief]]:
     """批量返回用户公开简档。开发模式身份切换器/批量卡片展示用。
 
     - 不需要鉴权（公开信息）
@@ -167,12 +165,12 @@ async def batch_get_users(
 
 @router.get(
     "/dev-identities",
-    response_model=APIResponse[List[dict]],
+    response_model=APIResponse[list[dict]],
     summary="列出可用的 dev 身份（开发模式身份切换用）",
 )
 async def list_dev_identities(
     db: Session = Depends(get_db),
-) -> APIResponse[List[dict]]:
+) -> APIResponse[list[dict]]:
     """返回所有 mock 模式创建的 dev 身份（按 wechat_unionid 识别）。
 
     用于 dev 切换器自动发现可用身份（不再硬编码 6 个）。
@@ -193,8 +191,8 @@ async def list_dev_identities(
             continue
         # 自动判定角色（基于是否有需求/房源）
         # 简化：从 properties 数量判断卖方，从 demands 判断买方
-        from app.models.property import Property
         from app.models.demand import Demand
+        from app.models.property import Property
         prop_count = db.scalar(
             select(func.count(Property.id)).where(Property.seller_id == u.id)
         ) or 0

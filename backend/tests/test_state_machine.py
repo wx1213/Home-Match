@@ -22,9 +22,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.core.database import Base, SessionLocal, engine
-from app.models.user import User, UserStatus
 from app.models.invitation import Invitation, InvitationStatus
-
+from app.models.user import User, UserStatus
 
 # ============================================================
 #  Fixtures
@@ -36,8 +35,8 @@ def create_tables():
         cooperation,
         demand,
         invitation,
-        proposal,
         property,
+        proposal,
         review,
         user,
     )
@@ -303,8 +302,9 @@ class TestGlobalMachineErrorHandler:
         self, client: TestClient, seeded, monkeypatch
     ):
         """绕过 can_X 检查，直接让 sm.accept() 抛 MachineError → 全局 handler 接住 → 409。"""
-        from app.domains.invitations import state_machine as sm_module
         from transitions import MachineError
+
+        from app.domains.invitations import state_machine as sm_module
 
         # Monkeypatch sm.accept 让它直接抛 MachineError
         original_init = sm_module.InvitationStateMachine.__init__

@@ -19,8 +19,6 @@ from pathlib import Path
 # 路径 hack：让脚本能从项目根目录导入
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.database import SessionLocal
-from app.domains.reviews.credit_score import recompute_all_credit_scores
 from app.workers.credit_score import recompute_all_credit_scores_task
 
 logging.basicConfig(

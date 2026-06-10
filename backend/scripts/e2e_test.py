@@ -22,15 +22,12 @@ from pathlib import Path
 # 把项目根加入 path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import httpx
-import json
-from datetime import datetime, timezone
 
-from app.core.config import settings
+import httpx
+
 from app.core.crypto import encrypt_phone, hash_phone
 from app.core.database import SessionLocal
 from app.models.user import User, UserStatus
-
 
 BASE_URL = "http://localhost:8000"
 
@@ -222,12 +219,11 @@ def main():
         # === Step 9: 验证所有数据落库 ===
         print("\n[Step 9] 验证数据落库...")
         with SessionLocal() as db:
-            from sqlalchemy import select
             from app.models.cooperation import Cooperation
-            from app.models.invitation import Invitation, InvitationStatus
-            from app.models.proposal import Proposal
             from app.models.demand import Demand
+            from app.models.invitation import Invitation, InvitationStatus
             from app.models.property import Property
+            from app.models.proposal import Proposal
 
             # Property
             p = db.get(Property, prop_id)
@@ -266,13 +262,13 @@ def main():
             assert "合作备忘录" in c.memo_content
             print(f"  ✅ Cooperation: id={c.id}, status={c.status.value}, "
                   f"signed_at={c.signed_at.isoformat()[:19]}")
-            print(f"     备忘录预览（前 200 字）:")
+            print("     备忘录预览（前 200 字）:")
             print(f"     {c.memo_content[:200]}...")
 
     print("\n" + "=" * 70)
     print("🎉 端到端测试全部通过！")
     print("=" * 70)
-    print(f"\n数据汇总：")
+    print("\n数据汇总：")
     print(f"  User:       buyer_id={buyer_id}, seller_id={seller_id}")
     print(f"  Property:   id={prop_id} (¥{property_data['total_price']/10000:.0f}万)")
     print(f"  Demand:     id={demand_id} ({demand['summary']})")
