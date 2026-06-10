@@ -60,7 +60,11 @@ def test_health_check(client: TestClient):
 
 
 def test_sms_code_validation(client: TestClient):
-    """短信验证码 - 手机号格式校验。"""
+    """短信验证码 - 手机号格式校验。
+
+    P1-1 修复：用 conftest.py 注入的 _InMemorySmsService 替代真实 Redis，
+    避免「环境有时 Redis 在跑就过，没跑就 fail」的不稳定状态。
+    """
     # 错误格式 → 400 (ValidationError)
     resp = client.post(
         "/v1/auth/sms-code",
@@ -69,19 +73,12 @@ def test_sms_code_validation(client: TestClient):
     assert resp.status_code == 400
     assert resp.json()["code"] == 10001  # ValidationError
 
-    # 正确格式 - 依赖 Redis
-    # Redis 可用时 → 200
-    # Redis 不可用时 → 500 (底层服务异常，符合预期)
-    try:
-        resp = client.post(
-            "/v1/auth/sms-code",
-            json={"phone": "13800138000", "purpose": "login"},
-        )
-        # 200 = 验证码已发送（mock 模式）
-        # 500 = Redis 不可用（开发环境无 Redis）
-        # 503 = 限流服务异常
-        assert resp.status_code in (200, 500, 503), f"Unexpected: {resp.status_code} {resp.text}"
-    except Exception as e:
-        # TestClient 在某些情况下会传播未捕获的异常
-        # 这种情况下视为"环境无 Redis，预期行为"
-        assert "Redis" in str(e) or "Connection" in str(e), f"Unexpected error: {e}"
+    # 正确格式 → 200（P1-1: 永远 200，因为 SmsService 是 in-memory 替身）
+    resp = client.post(
+        "/v1/auth/sms-code",
+        json={"phone": "13800138000", "purpose": "login"},
+    )
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    assert data["code"] == 0
+    assert "expire_in" in data["data"]
