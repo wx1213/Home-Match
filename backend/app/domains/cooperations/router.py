@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.core.errors import (
+    InvalidStateTransitionError,
     NotFoundError,
     PermissionDeniedError,
     ValidationError,
@@ -51,8 +52,12 @@ async def confirm_proposal(
         raise PermissionDeniedError("只能确认自己的邀请")
 
     sm = InvitationStateMachine(inv)
+    # P1-5：非法状态转移返 409
     if not sm.can_confirm():
-        raise ValidationError(f"当前状态 {inv.status} 不可确认")
+        raise InvalidStateTransitionError(
+            f"当前状态 {inv.status} 不可确认",
+            detail={"current_state": inv.status, "action": "confirm"},
+        )
 
     proposal = db.scalar(select(Proposal).where(Proposal.invitation_id == inv_id))
     if not proposal:
@@ -98,6 +103,12 @@ async def decline_proposal(
         raise PermissionDeniedError("只能拒绝自己的邀请")
 
     sm = InvitationStateMachine(inv)
+    # P1-5：补 can_decline 校验（之前缺失，导致 handshaked 后再 decline → 500）
+    if not sm.can_decline():
+        raise InvalidStateTransitionError(
+            f"当前状态 {inv.status} 不可拒绝",
+            detail={"current_state": inv.status, "action": "decline"},
+        )
     sm.decline()
 
     proposal = db.scalar(select(Proposal).where(Proposal.invitation_id == inv_id))
@@ -108,7 +119,7 @@ async def decline_proposal(
             proposal.decline_reason = reason
 
     db.commit()
-    return APIResponse(data={"id": inv.id, "status": inv.status.value})
+    return APIResponse(data={"id": inv.id, "status": inv.status.value if hasattr(inv.status, "value") else inv.status})
 
 
 @router.get("/cooperations/{coop_id}", response_model=APIResponse[CooperationResponse], summary="合作详情")

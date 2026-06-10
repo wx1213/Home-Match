@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.core.errors import (
+    InvalidStateTransitionError,
     NotFoundError,
     PermissionDeniedError,
     ValidationError,
@@ -44,8 +45,13 @@ async def submit_proposal(
         raise PermissionDeniedError("只能为自己的邀请提交方案")
 
     sm = InvitationStateMachine(inv)
+    # P1-5：非法状态转移返 409
     if not sm.can_submit_proposal():
-        raise ValidationError(f"当前状态 {inv.status.value} 不可提交方案")
+        status_str = inv.status.value if hasattr(inv.status, "value") else inv.status
+        raise InvalidStateTransitionError(
+            f"当前状态 {status_str} 不可提交方案",
+            detail={"current_state": status_str, "action": "submit_proposal"},
+        )
 
     # 校验 2h 截止
     # P1-3 修复：SQLite 不存 tz，从 DB 读回的 datetime 是 naive，需补 tz 后再比较

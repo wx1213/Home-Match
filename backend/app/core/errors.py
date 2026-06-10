@@ -109,6 +109,26 @@ class InvitationExpiredError(AppError):
     http_status = 410
 
 
+class InvalidStateTransitionError(AppError):
+    """P1-5: 状态机非法转移（不在 allowed 列表内的状态切换）。"""
+    code = 30005
+    message = "状态机非法转移"
+    http_status = 409
+
+
+class DuplicateReviewError(AppError):
+    code = 30006
+    message = "已评价过"
+    http_status = 409
+
+
+class InvitationAlreadyRespondedError(AppError):
+    """P1-5: 邀请已被响应（accept/reject/expire），重复操作返 409。"""
+    code = 30007
+    message = "邀请已被响应"
+    http_status = 409
+
+
 class CreditScoreTooLowError(AppError):
     code = 30003
     message = "信用分不足"
@@ -171,6 +191,30 @@ def register_exception_handlers(app: FastAPI) -> None:
             },
         )
         return _error_response(exc.code, exc.message, exc.http_status, exc.detail)
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, exc: Exception):
+        """P1-5 兜底：捕获 transitions.MachineError 等意外异常，避免 5xx。
+
+        注意：这个 handler 只对未被子 handler 捕获的 Exception 兜底；
+        AppError 子类仍由 app_error_handler 处理。
+        """
+        # transitions 库的 MachineError 是状态机非法转移
+        exc_module = getattr(exc.__class__, "__module__", "")
+        if "transitions" in exc_module and "MachineError" in exc.__class__.__name__:
+            logger.warning(
+                "StateMachine MachineError caught at global handler",
+                extra={"path": request.url.path, "error": str(exc)},
+            )
+            return _error_response(
+                30005, "状态机非法转移", 409, detail={"reason": str(exc)}
+            )
+        # 其他未知异常：打 ERROR 日志，返 500
+        logger.error(
+            "Unhandled exception",
+            extra={"path": request.url.path, "error": str(exc), "type": exc.__class__.__name__},
+        )
+        return _error_response(10000, "内部错误", 500)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(

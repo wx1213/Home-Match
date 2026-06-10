@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.core.errors import (
     InvitationExpiredError,
+    InvalidStateTransitionError,
     NotFoundError,
     PermissionDeniedError,
     ValidationError,
@@ -148,6 +149,14 @@ async def accept_invitation(
     if inv.seller_id != user.id:
         raise PermissionDeniedError("只能接自己的邀请")
 
+    sm = InvitationStateMachine(inv)
+    # P1-5：非法状态转移返 409 (InvalidStateTransitionError)，不是 400
+    if not sm.can_accept():
+        raise InvalidStateTransitionError(
+            f"当前状态 {inv.status} 不可接单",
+            detail={"current_state": inv.status, "action": "accept"},
+        )
+
     # 检查是否超时
     # P1-3 修复：SQLite 不存 tz，从 DB 读回的 datetime 是 naive，需补 tz 后再比较
     expired_at = inv.expired_at
@@ -155,14 +164,9 @@ async def accept_invitation(
         expired_at = expired_at.replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) > expired_at:
         # 触发过期
-        sm = InvitationStateMachine(inv)
         sm.expire()
         db.commit()
         raise InvitationExpiredError("邀请已超时失效")
-
-    sm = InvitationStateMachine(inv)
-    if not sm.can_accept():
-        raise ValidationError(f"当前状态 {inv.status} 不可接单")
 
     sm.accept()
     InvitationStateMachine.apply_accept_side_effects(inv)
@@ -173,7 +177,7 @@ async def accept_invitation(
     return APIResponse(
         data=InvitationAcceptResponse(
             invitation_id=inv.id,
-            status=inv.status.value,
+            status=inv.status.value if hasattr(inv.status, "value") else inv.status,
             proposal_deadline=inv.proposal_deadline,
         )
     )
@@ -194,9 +198,15 @@ async def reject_invitation(
         raise PermissionDeniedError("只能拒绝自己的邀请")
 
     sm = InvitationStateMachine(inv)
+    # P1-5：补 can_reject 校验（之前缺失，导致 accept/reject/expire 后再 reject → 500）
+    if not sm.can_reject():
+        raise InvalidStateTransitionError(
+            f"当前状态 {inv.status} 不可拒绝",
+            detail={"current_state": inv.status, "action": "reject"},
+        )
     sm.reject()
     InvitationStateMachine.apply_reject_side_effects(inv)
     if reason:
         inv.reject_reason = reason
     db.commit()
-    return APIResponse(data={"id": inv.id, "status": inv.status.value})
+    return APIResponse(data={"id": inv.id, "status": inv.status.value if hasattr(inv.status, "value") else inv.status})

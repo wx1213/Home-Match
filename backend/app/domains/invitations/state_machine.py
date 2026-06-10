@@ -157,8 +157,16 @@ class InvitationStateMachine:
     def can_accept(self) -> bool:
         return self.current_state == "pending"
 
+    def can_reject(self) -> bool:
+        """P1-5：仅 pending 状态可 reject。"""
+        return self.current_state == "pending"
+
     def can_submit_proposal(self) -> bool:
         return self.current_state == "accepted"
 
     def can_confirm(self) -> bool:
+        return self.current_state == "proposal_review"
+
+    def can_decline(self) -> bool:
+        """P1-5：仅 proposal_review 状态可 decline。"""
         return self.current_state == "proposal_review"
