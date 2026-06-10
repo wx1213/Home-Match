@@ -9,9 +9,12 @@ MVP 阶段：测试不依赖真实 PG/Redis，只做单元测试和路由 smoke 
 import os
 
 # 强制使用 mock 配置（不依赖真实 DB/Redis/SMS）
+# 注：P1-3 改用 file-based SQLite（P1-3 越权测试需要跨连接共享 schema；
+# :memory: 模式下每个 SQLAlchemy connection 都是独立 DB，会出现 no such table 错误）
+_TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "_test_home_match.db")
 os.environ.setdefault("APP_ENV", "development")
 os.environ.setdefault("APP_DEBUG", "true")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_TEST_DB_PATH}")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "test-secret-32-chars-minimum-please-ok")
 os.environ.setdefault("SMS_PROVIDER", "mock")

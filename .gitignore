@@ -89,3 +89,7 @@ site/
 
 # 排除 _inbox（原始资料归档）
 _inbox/
+
+# P1-3 test artifacts
+backend/tests/_test_home_match.db
+backend/tests/_test_home_match.db-journal

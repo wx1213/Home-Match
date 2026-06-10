@@ -36,8 +36,9 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
 
     # === 认证相关（v0.4：微信为主） ===
     # 微信
-    wechat_unionid: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
-    wechat_openid: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # P1-3 修复：去掉 column 自带的 `index=True`（避免与 __table_args__ 同名 Index 冲突）
+    wechat_unionid: Mapped[str | None] = mapped_column(String(64), unique=True)
+    wechat_openid: Mapped[str | None] = mapped_column(String(64), unique=True)
     wechat_nickname: Mapped[str | None] = mapped_column(String(64))
     wechat_avatar_url: Mapped[str | None] = mapped_column(String(512))
 

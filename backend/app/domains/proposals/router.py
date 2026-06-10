@@ -48,10 +48,15 @@ async def submit_proposal(
         raise ValidationError(f"当前状态 {inv.status.value} 不可提交方案")
 
     # 校验 2h 截止
-    if inv.proposal_deadline and datetime.now(timezone.utc) > inv.proposal_deadline:
-        sm.expire()
-        db.commit()
-        raise ValidationError("方案提交已超时")
+    # P1-3 修复：SQLite 不存 tz，从 DB 读回的 datetime 是 naive，需补 tz 后再比较
+    if inv.proposal_deadline:
+        deadline = inv.proposal_deadline
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > deadline:
+            sm.expire()
+            db.commit()
+            raise ValidationError("方案提交已超时")
 
     # 创建方案
     now = datetime.now(timezone.utc)

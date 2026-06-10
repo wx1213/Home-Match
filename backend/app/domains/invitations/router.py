@@ -149,7 +149,11 @@ async def accept_invitation(
         raise PermissionDeniedError("只能接自己的邀请")
 
     # 检查是否超时
-    if datetime.now(timezone.utc) > inv.expired_at:
+    # P1-3 修复：SQLite 不存 tz，从 DB 读回的 datetime 是 naive，需补 tz 后再比较
+    expired_at = inv.expired_at
+    if expired_at.tzinfo is None:
+        expired_at = expired_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expired_at:
         # 触发过期
         sm = InvitationStateMachine(inv)
         sm.expire()
