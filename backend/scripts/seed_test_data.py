@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import argparse
+import colorsys
 import random
 import sys
 from dataclasses import dataclass
@@ -183,6 +184,61 @@ def ensure_test_user(db, spec: TestUserSpec, rng: random.Random) -> tuple[User, 
     return user, True
 
 
+def _generate_seed_image(key: str) -> str:
+    """[Sprint1-P0 续] 用 PIL 本地生成 600×400 多彩占位图，返回 backend URL。
+
+    实现：哈希 key 到 hue（不同 key 不同色），加网格纹理模拟房屋图变化，
+    写到 ``upload_dir``，URL 用 ``app_base_url + /uploads/``。
+
+    优点：
+    - 完全无网络依赖（之前 picsum.photos 在 iOS 模拟器里偶尔加载失败）
+    - 模拟器走 dio baseUrl=http://localhost:8000 直接命中
+    - 跑 100 房源共 ~300 张图 < 5s
+    """
+    from app.core.config import settings
+
+    upload_dir = Path(settings.upload_dir).resolve()
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # 按 key 哈希到稳定 hue（同一 key 永远同一色）
+    hue = (hash(key) % 360) / 360.0
+    r, g, b = colorsys.hsv_to_rgb(hue, 0.55, 0.78)
+    base = (int(r * 255), int(g * 255), int(b * 255))
+
+    from PIL import Image, ImageDraw
+
+    # 800x300 比例 ≈ 8:3 接近卡片 cover image 比例（340x150 ≈ 17:8 ≈ 2.13:1）
+    # 留些 padding 让 BoxFit.cover 不裁太多
+    img = Image.new("RGB", (800, 300), base)
+    draw = ImageDraw.Draw(img)
+
+    # 加 4 条不同色横线（模拟房屋窗户 / 楼层纹理）
+    for i in range(4):
+        line_y = 60 + i * 60
+        line_color = (
+            min(255, base[0] + 30 + i * 8),
+            min(255, base[1] + 30 + i * 8),
+            min(255, base[2] + 30 + i * 8),
+        )
+        draw.rectangle([0, line_y, 800, line_y + 8], fill=line_color)
+
+    # 6 个窗户（白色方块）— 8:3 宽高比排得开
+    for col in range(6):
+        x = 60 + col * 120
+        y = 100
+        draw.rectangle([x, y, x + 50, y + 80], fill=(255, 255, 240))
+
+    # 写本地
+    import hashlib
+    h = hashlib.md5(key.encode()).hexdigest()[:16]
+    filename = f"seed-{h}.jpg"
+    target = upload_dir / filename
+    if not target.exists():
+        img.save(target, format="JPEG", quality=80)
+
+    return f"{settings.app_base_url.rstrip('/')}/uploads/{filename}"
+
+
 def _make_property_for_user(
     user_id: int, idx: int, rng: random.Random
 ) -> Property:
@@ -221,13 +277,13 @@ def _make_property_for_user(
     days_ago = rng.randint(0, 60)
     created_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
 
-    # 占位图：用 picsum.photos seed URL（稳定 HTTPS 公网图床，按 seed 出图）。
-    # 之前用 placeholder.homematch.local 是假域名，列表卡片永远 broken image。
-    # 生产环境上传的真实图片 URL 由 /v1/upload/image 返回（OSS / local）。
-    # 每条房源给 1-3 张（多图模拟真实场景），seed 加 idx 让卡片间图片不重复。
+    # 占位图：PIL 本地生成 600×400 多彩渐变图，写到 upload_dir，返回 backend URL。
+    # 之前用 picsum.photos 公网 URL——iOS 模拟器网络受限加载失败 → 列表 broken image。
+    # 现在完全本地生成 + 走 backend /uploads/ → 模拟器一定能命中。
+    # 生产环境真实图片 URL 由 /v1/upload/image 返回（OSS / local）。
     num_imgs = rng.randint(1, 3)
     images = [
-        f"https://picsum.photos/seed/homamatch-{user_id}-{idx}-{i}/600/400"
+        _generate_seed_image(f"{user_id}-{idx}-{i}")
         for i in range(num_imgs)
     ]
 
@@ -382,11 +438,12 @@ def main() -> int:
             # 先删子表（properties/demands）+ invitations/cooperations/reviews/user
             # 用 wechat_unionid 判 user_id，再 cascade
             test_user_unionids = [f"mock_unionid_{spec.code[:16]}" for spec in TEST_USERS]
-            test_user_ids = [
-                u.id for u in db.scalars(
+            # select(User.id) 直接返 int 序列，不需要 .id
+            test_user_ids = list(
+                db.scalars(
                     select(User.id).where(User.wechat_unionid.in_(test_user_unionids))
                 ).all()
-            ]
+            )
             if test_user_ids:
                 # 用 user.id 找关联数据（Cooperation/Invitation/Review 已在文件顶部 import）
                 # F823: Property/Demand 是模块级 import，ruff 在长函数内误判为 local var
@@ -446,9 +503,6 @@ def main() -> int:
 
         # 汇总
         from sqlalchemy import func as sql_func
-
-        from app.models.demand import Demand
-        from app.models.property import Property
         user_count = db.scalar(sql_func.count(User.id)) or 0
         prop_count = db.scalar(sql_func.count(Property.id)) or 0
         dem_count = db.scalar(sql_func.count(Demand.id)) or 0

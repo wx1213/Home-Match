@@ -189,7 +189,7 @@ class _PropertyCard extends StatelessWidget {
                     top: Radius.circular(HMRadius.lg),
                   ),
                   child: SizedBox(
-                    height: 140,
+                    height: 150,
                     width: double.infinity,
                     child: _buildCoverImage(property, color),
                   ),
