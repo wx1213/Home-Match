@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/network/dio_client.dart';
 import '../../core/theme/app_tokens.dart';
@@ -340,14 +341,41 @@ class _ImagePlaceholder extends StatelessWidget {
         ),
       );
     }
-    // 有图片时用 PageView（实际项目可接入 cached_network_image）
+    // 有图片时用 PageView + CachedNetworkImage（[Sprint3 修复]）
+    // 跟列表页 cover image 用同样的安全日志 + CachedNetworkImage
     return SizedBox(
       height: 240,
       child: PageView.builder(
         itemCount: images.length,
-        itemBuilder: (_, i) => Container(
-          color: Colors.grey.shade300,
-          child: Center(child: Text('图片 ${i + 1}')),
+        itemBuilder: (_, i) => CachedNetworkImage(
+          imageUrl: images[i],
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(
+            color: Colors.grey.shade200,
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          errorWidget: (_, __, ___) => Container(
+            color: Colors.grey.shade300,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.broken_image_outlined,
+                    size: 48,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(height: HMSpace.xs),
+                  Text(
+                    '图片加载失败',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
