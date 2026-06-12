@@ -1,8 +1,6 @@
 /// 全局认证事件总线 - 监听 token 过期、强制登出等
 library;
 
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

@@ -888,7 +888,6 @@ class _PartyChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme;
     final display = party.displayName ?? party.name ?? '用户 #${party.id}';
     return Row(
       children: [

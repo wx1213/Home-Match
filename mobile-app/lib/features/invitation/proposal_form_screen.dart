@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_tokens.dart';
 import 'invitation_service.dart';
-import 'proposal_view_screen.dart';
 
 class ProposalFormScreen extends ConsumerStatefulWidget {
   final int invitationId;

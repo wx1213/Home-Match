@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../auth/auth_event_bus.dart';
 import '../env/app_env.dart';
 import 'auth_interceptor.dart';
+import 'log_interceptor.dart';
 
 /// API base URL（从 AppEnv 编译时注入，兼容旧代码引用）
 ///
@@ -42,12 +43,11 @@ final dioProvider = Provider<Dio>((ref) {
   );
 
   // 拦截器链（按顺序）
+  // [Sprint1-P0] 用 SafeLogInterceptor 替代 dio 内置 LogInterceptor：
+  //   - 生产环境（AppEnv.isProduction）只打 method+path+status，**不打 body**
+  //   - 敏感字段（token/phone/openid/...）始终脱敏
   dio.interceptors.addAll([
-    LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (obj) => print('[HTTP] $obj'),
-    ),
+    SafeLogInterceptor(),
     ref.read(authInterceptorProvider),
   ]);
 

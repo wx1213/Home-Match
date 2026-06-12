@@ -4,8 +4,6 @@ library;
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import '../auth/auth_event_bus.dart';
-
 class AuthInterceptor extends Interceptor {
   AuthInterceptor(this._storage, {this.onUnauthorized});
 

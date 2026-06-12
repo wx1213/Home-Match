@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- ============================================================
+	     iOS Privacy Manifest (Sprint3-#14)
+	     ============================================================
+	     Apple 自 2024-05-01 起要求所有新提交 APP 必须含 PrivacyInfo.xcprivacy。
+	     https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+
+	     本文件声明 APP 使用的"Required Reason API"（系统 API 调用原因）
+	     + 数据收集实践（Data Collection Practices）。
+
+	     用法：Xcode → Target Runner → Build Phases → Copy Bundle Resources
+	     → 添加 ios/Runner/PrivacyInfo.xcprivacy。Flutter 默认会通过 build 自动 copy。
+	     -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- 收集的数据类别（每类一条；为空表示不收集） -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!--
+		  我们只收集：
+		  1. 用户手机号（用于登录 + 联系）
+		  2. 用户位置（不主动；只在房源图 EXIF 残留时被动）
+		     → 后端 [Sprint3-#13] 已强制清理 EXIF GPS
+		  3. 微信/Apple 登录标识（OAuth 返回的 openid/unionid/sub）
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhoneNumber</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Required Reason API 声明（系统 API 使用原因） -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!-- UserDefaults：登录 token 持久化 -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>  <!-- 访问 app 自己写入的 UserDefaults -->
+			</array>
+		</dict>
+		<!-- File timestamp：APP 内部文件时间戳 -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>  <!-- 在 app 内显示给用户 -->
+			</array>
+		</dict>
+		<!-- Disk space：检查 APP 缓存空间（图片压缩前判断） -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>  <!-- app 自身功能所需 -->
+			</array>
+		</dict>
+		<!-- System boot time：iOS 用于性能诊断（APM SDK 用） -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>  <!-- app 内部使用；Sentry/Firebase crash 报告需要 -->
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

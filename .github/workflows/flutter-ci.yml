@@ -1,4 +1,4 @@
-# HomeMatch Flutter CI (P2-4 引入)
+# HomeMatch Flutter CI (P2-4 引入 + Sprint1-P0 扩展)
 #
 # 触发：main 分支 push + PR + 手动 dispatch
 # 步骤：
@@ -7,6 +7,15 @@
 #   3. flutter pub get
 #   4. flutter analyze
 #   5. flutter test
+#   6. flutter build apk --release        (ubuntu 自带 Android SDK)
+#   7. flutter build appbundle --release  (Google Play 用 aab)
+#
+# iOS build (.ipa) 需要 macos runner；见 ``build-ios`` job（在 workflow_dispatch 时才跑）
+#
+# Android 签名：
+#   - 4 个 secret 从 GitHub Actions secret 注入到 android/key.properties
+#   - 缺少 secret 时 release build 会 hard fail（避免 debug 签名上架）
+#   - 仓库当前用自带的 ``debug`` 兜底 → 上架前必须配 secret
 
 name: Flutter CI
 
@@ -50,3 +59,130 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # ----- Release build (Android) -----
+      # [Sprint1-P0] 上架硬阻断前置：CI 必须能 build release apk
+      #   - PR 时跑（验 build 不会因代码改动炸）但不签名（用 debug）
+      #   - main push + workflow_dispatch 走正式签名
+      - name: Build Android APK (release, debug-signed for PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          # PR 阶段不配 secret → build.gradle.kts 会用空 signingConfig，Android AGP 会报错
+          # 所以我们临时塞个占位 keystore 让 build 通过；这只是验证编译，不上架
+          if [ ! -f android/app/homematch-release.jks ]; then
+            keytool -genkey -v -keystore android/app/homematch-release.jks \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -alias homematch \
+              -storepass ci_placeholder -keypass ci_placeholder \
+              -dname "CN=HomeMatch CI,O=Dev,C=CN"
+          fi
+          cat > android/key.properties <<EOF
+          storeFile=homematch-release.jks
+          storePassword=ci_placeholder
+          keyAlias=homematch
+          keyPassword=ci_placeholder
+          EOF
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=https://staging-api.homematch.com \
+            --dart-define=PRODUCTION=true \
+            --dart-define=ENABLE_DEV_LOGIN=false
+
+      - name: Build Android APK (release, real-signed for main)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret missing — release build requires signing config"
+            exit 1
+          fi
+          # 1. 解密 keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/homematch-release.jks
+          # 2. 写 key.properties（不提交到 git，仅 CI 临时）
+          cat > android/key.properties <<EOF
+          storeFile=homematch-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          # 3. build
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=https://api.homematch.com \
+            --dart-define=PRODUCTION=true \
+            --dart-define=ENABLE_DEV_LOGIN=false
+
+      - name: Build Android App Bundle (aab for Google Play)
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret missing"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/homematch-release.jks
+          cat > android/key.properties <<EOF
+          storeFile=homematch-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          flutter build appbundle --release \
+            --dart-define=API_BASE_URL=https://api.homematch.com \
+            --dart-define=PRODUCTION=true \
+            --dart-define=ENABLE_DEV_LOGIN=false
+
+      - name: Upload build artifacts
+        if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ github.sha }}
+          path: |
+            mobile-app/build/app/outputs/flutter-apk/app-release.apk
+            mobile-app/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+  # ----- iOS build (macos only) -----
+  # 默认不在 PR 跑（macos runner 慢 + 提审前才需要）
+  build-ios:
+    runs-on: macos-14
+    if: github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.1"
+          channel: stable
+          cache: true
+      - name: Show Flutter version
+        run: flutter --version
+      - name: Pub get
+        run: flutter pub get
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+      - name: Build iOS (no-codesign, archive only)
+        # [Sprint1-P0] 上架硬阻断前置：CI 能 build ipa
+        #   - 提审前需配 APPLE_CERT_P12_BASE64 + APPLE_PROVISION_PROFILE_BASE64
+        #     + APPLE_APP_PASSWORD 等 secret 才能 build ipa（codesign）
+        #   - 本步骤先验证编译通过；codesign 留给提审前补
+        run: |
+          flutter build ipa --release --no-codesign \
+            --dart-define=API_BASE_URL=https://api.homematch.com \
+            --dart-define=PRODUCTION=true \
+            --dart-define=ENABLE_DEV_LOGIN=false
+      - name: Upload iPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-${{ github.sha }}
+          path: mobile-app/build/ios/ipa/*.ipa
+          retention-days: 14
