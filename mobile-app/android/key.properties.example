@@ -1,0 +1,47 @@
+# ============================================================
+#  Android Release 签名配置（[Sprint1-P0] 上架硬阻断）
+# ============================================================
+#
+# ⚠️ 本文件**示例**。真实配置在 key.properties（已 .gitignore）
+#
+# 1. 生成 keystore（首次；只做一次；妥善保管 .jks 文件和密码）
+#      keytool -genkey -v \
+#        -keystore android/app/homematch-release.jks \
+#        -keyalg RSA -keysize 2048 -validity 10000 \
+#        -alias homematch
+#    会提示输入 keystore 密码 + 你的姓名/单位/省市。
+#
+# 2. 拷贝本文件：
+#      cp android/key.properties.example android/key.properties
+#
+# 3. 填 4 个字段：
+#    - storeFile：相对 android/ 目录的 .jks 路径
+#    - storePassword：keystore 密码
+#    - keyAlias：生成时指定的 alias（上面是 homematch）
+#    - keyPassword：key 密码（如果生成时没单独设，跟 storePassword 一样）
+#
+# 4. CI / CD 注入：
+#    GitHub Actions 等环境不要把 key.properties 提交。
+#    而是在 CI 流程里：
+#      a) 解密 base64 的 .jks 写到 android/app/homematch-release.jks
+#      b) 用 envsubst / sed 注入 4 个字段到 key.properties
+#    或者用 Gradle 的 -P 参数：
+#      ./gradlew assembleRelease \
+#        -Pandroid.injected.signing.store.file=$KEYSTORE_PATH \
+#        -Pandroid.injected.signing.store.password=$STORE_PW \
+#        -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+#        -Pandroid.injected.signing.key.password=$KEY_PW
+#    配合 build.gradle.kts 里读系统属性（本期先 key.properties 简单方案）
+#
+# 5. 验证：
+#      cd android && ./gradlew assembleRelease
+#    应该产出 android/app/build/outputs/apk/release/app-release.apk
+#    检查签名：
+#      keytool -printcert -jarfile app-release.apk
+#    应该看到你自己的证书而不是 Android Debug 证书。
+#
+
+storeFile=homematch-release.jks
+storePassword=__REPLACE_ME__
+keyAlias=homematch
+keyPassword=__REPLACE_ME__

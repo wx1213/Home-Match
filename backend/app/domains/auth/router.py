@@ -12,7 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.errors import InvalidTokenError
+from app.core.errors import (
+    AppleAuthInvalidTokenError,
+    InvalidTokenError,
+    WeChatAuthUnavailableError,
+)
 from app.core.logging import get_logger
 from app.core.ratelimit import get_limiter
 from app.core.security import create_access_token, create_refresh_token, decode_token
@@ -123,16 +127,29 @@ async def wechat_login(
     2. 查 users 表，有则登录，无则自动注册
     3. 返回 JWT
 
-    注意：MVP 阶段 `code` 换 `openid` 需要配置 AppID。
-    开发期如无 AppID，自动用 mock openid。
+    [Sprint1-P0] 生产安全：
+    - 生产环境（``app_env=production``）**禁止** mock 兜底
+    - 缺 app_id/secret → 返 503（WeChatAuthUnavailableError），不再静默放行
+    - 开发/staging 保留 mock（dev 切换器需要）
     """
     # 1. code 换 openid + unionid
     app_id = body.app_id or settings.wechat_test_app_id or settings.wechat_app_id
     app_secret = settings.wechat_test_app_secret or settings.wechat_app_secret
 
     if not app_id or not app_secret:
-        # 开发兜底：直接用 code 当 openid
-        #
+        # [Sprint1-P0] 生产环境：禁止 mock 兜底
+        if settings.is_production:
+            logger.error(
+                "WeChat login unavailable in production: app_id/secret not configured",
+                extra={"code_prefix": body.code[:16] if body.code else None},
+            )
+            raise WeChatAuthUnavailableError(
+                "微信登录暂不可用（缺少 WECHAT_APP_ID / WECHAT_APP_SECRET）",
+                detail={"missing": ["wechat_app_id" if not app_id else None,
+                                   "wechat_app_secret" if not app_secret else None]},
+            )
+
+        # dev / staging 兜底：直接用 code 当 openid
         # P1-0 修复（2026-06-10）说明：
         # - dev code 是稳定的 wechat code label（如 `dev_alice`）
         # - 这里生成 `mock_unionid_{code[:16]}` 作为 users 表的查找 key
@@ -141,8 +158,9 @@ async def wechat_login(
         # - 6 个稳定 dev user 由 `backend/scripts/seed_dev_users.py` 预创建，
         #   详见 `docs/05-dev-users.md`
         logger.warning(
-            "WeChat app_id/secret not configured, using mock openid",
-            extra={"code_prefix": body.code[:16]},
+            "WeChat app_id/secret not configured, using mock openid (dev mode only)",
+            extra={"code_prefix": body.code[:16] if body.code else None,
+                   "app_env": settings.app_env},
         )
         unionid = f"mock_unionid_{body.code[:16]}"
         openid = f"mock_openid_{body.code[:16]}"
@@ -213,10 +231,32 @@ async def apple_login(
 ) -> APIResponse[LoginResponse]:
     """iOS 通过 Apple 登录（[D-013] iOS 上架合规要求）。
 
-    MVP 阶段简化：用 identity_token 前 32 字符当 apple_user_id。
-    完整实现需要验证 Apple JWT 签名（用 Apple JWKS 公钥）。
+    [Sprint1-P0] 安全加固：
+    - 生产环境**必须**用 Apple JWKS 公钥验签 identity_token（签名/aud/iss/exp）
+    - 用 payload.sub（Apple 唯一用户 id）当 apple_user_id
+    - dev/staging 保留 mock 路径（方便本地 iOS 模拟器无 Apple 账号时调试）
     """
-    apple_user_id = body.identity_token[:32]
+    from app.domains.auth.apple_verify import (
+        is_dev_mode,
+        mock_extract_user_id_for_dev,
+        verify_apple_identity_token,
+    )
+
+    if is_dev_mode() and settings.apple_client_id == "":
+        # dev 模式 + 没配 client_id → 走 mock（之前 MVP 方案）
+        # 生产环境绝不走这里（is_dev_mode()=False）
+        try:
+            apple_user_id = mock_extract_user_id_for_dev(body.identity_token)
+        except AppleAuthInvalidTokenError:
+            raise
+    else:
+        # 真实生产路径：验签 Apple JWT
+        try:
+            payload = verify_apple_identity_token(body.identity_token)
+            apple_user_id = payload["sub"]
+        except AppleAuthInvalidTokenError:
+            # 已经带结构化 detail，直接 re-raise
+            raise
 
     user = db.scalar(select(User).where(User.apple_user_id == apple_user_id))
 

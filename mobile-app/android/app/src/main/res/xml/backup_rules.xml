@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================
+     Android 11- Backup Rules (Sprint3-#14)
+     https://developer.android.com/guide/topics/data/autobackup
+
+     旧版 backup_rules.xml（Android 12+ 已用 data_extraction_rules 替代）；
+     两个都加保证向后兼容。
+     ============================================================ -->
+<full-backup-content>
+    <!-- JWT token 不备份（用户换机必须重新登录） -->
+    <exclude domain="sharedpref" path="flutter_secure_storage.xml"/>
+    <exclude domain="database" path="flutter_secure_storage"/>
+    <exclude domain="file" path="flutter_secure_storage"/>
+</full-backup-content>

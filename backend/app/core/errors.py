@@ -161,6 +161,30 @@ class PushError(AppError):
     http_status = 502
 
 
+class WeChatAuthUnavailableError(AppError):
+    """[Sprint1-P0] 微信登录未配置 / mock 兜底被生产禁用。"""
+
+    code = 40004
+    message = "微信登录暂不可用"
+    http_status = 503
+
+
+class AppleAuthInvalidTokenError(AppError):
+    """[Sprint1-P0] Apple identity_token 验签失败（签名/aud/iss/exp 任一不通过）。"""
+
+    code = 40005
+    message = "Apple 身份令牌无效"
+    http_status = 401
+
+
+class DevLoginDisabledError(AppError):
+    """[Sprint1-P0] 生产环境禁止 dev login 兜底。"""
+
+    code = 40006
+    message = "Dev 登录已禁用"
+    http_status = 403
+
+
 # ============== 全局异常处理器 ==============
 
 def _error_response(

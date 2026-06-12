@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.errors import DevLoginDisabledError
 from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
 from app.models.cooperation import Cooperation, CooperationStatus
@@ -23,12 +25,17 @@ router = APIRouter(prefix="/users", tags=["用户"])
 
 
 class UserPublicBrief(BaseModel):
-    """公开的、用于名片展示的用户简档（不含手机/邮箱等敏感字段）。"""
+    """[Sprint1-P0] 公开的用户简档（用于房源/需求详情/合作名片展示）。
+
+    字段策略：
+    - **不包含** ``name``（真实姓名）、``phone_encrypted``、``email``、``id_card``
+    - 只含显示名（"张先生"）、信用分、头像、是否认证
+    - 真实联系方式要握手成功后才通过 :class:`CooperationResponse` 等端点查询
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
     display_name: str | None
     avatar_url: str | None
     credit_score: float
@@ -174,7 +181,19 @@ async def list_dev_identities(
     """返回所有 mock 模式创建的 dev 身份（按 wechat_unionid 识别）。
 
     用于 dev 切换器自动发现可用身份（不再硬编码 6 个）。
+
+    [Sprint1-P0] 生产安全：生产环境（``app_env=production``）**禁止**调用此端点
+    返 403 DevLoginDisabledError；dev 切换器在生产构建里也应被 UI 隐藏
+    （[docs/06-flavor-env.md](../../../../../docs/06-flavor-env.md) dev 守卫已处理）
     """
+    if settings.is_production:
+        logger.error(
+            "dev-identities called in production — possible security incident"
+        )
+        raise DevLoginDisabledError(
+            "Dev 切换器在生产环境不可用",
+            detail={"app_env": settings.app_env},
+        )
     users = db.scalars(
         select(User)
         .where(
