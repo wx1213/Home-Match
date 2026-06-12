@@ -29,6 +29,62 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cooperations/{coop_id}/review", tags=["评价"])
 
 
+def _user_to_brief(u: User) -> dict:
+    """[Sprint1-P0] User → 脱敏名片 dict。"""
+    if not u:
+        return None
+    return {
+        "id": u.id,
+        "display_name": u.display_name,
+        "avatar_url": u.avatar_url,
+        "credit_score": u.credit_score,
+        "is_verified": u.is_verified,
+    }
+
+
+def _build_review_response(
+    review: Review,
+    reviewee: User | None,
+    reviewer: User | None = None,
+    is_self_view: bool = False,
+) -> dict:
+    """[Sprint1-P0] 构造脱敏 review response。
+
+    匿名规则：
+    - ``is_anonymous=True`` 且**不是**评价人自己看 → reviewer_id 设 None、reviewer_brief=None
+    - 自己是评价人看自己的评价 → 永远实名（方便回看）
+    - reviewee 始终实名（被评价人自己看合作时要知道谁评的——除了匿名场景）
+    """
+    base = {
+        "id": review.id,
+        "cooperation_id": review.cooperation_id,
+        "rating": review.rating,
+        "comment": review.comment,
+        "tags": review.tags or [],
+        "is_anonymous": review.is_anonymous,
+        "created_at": review.created_at,
+    }
+
+    # 评价人（reviewer）字段：匿名 + 别人看 → 抹掉
+    if review.is_anonymous and not is_self_view:
+        base["reviewer_id"] = None
+        base["reviewer_brief"] = None
+    else:
+        # reviewer 可能从 caller 传过来，也可能要从 db 查
+        if reviewer is None and review.reviewer_id:
+            # 调用方没传 — 这里没法再查（无 db）— fallback 到 None
+            base["reviewer_id"] = review.reviewer_id
+            base["reviewer_brief"] = None
+        else:
+            base["reviewer_id"] = review.reviewer_id
+            base["reviewer_brief"] = _user_to_brief(reviewer) if reviewer else None
+
+    # 被评价人（reviewee）始终展示
+    base["reviewee_id"] = review.reviewee_id
+    base["reviewee_brief"] = _user_to_brief(reviewee)
+    return base
+
+
 @router.post("", response_model=APIResponse[ReviewResponse], summary="提交评价")
 async def submit_review(
     coop_id: int,
@@ -96,7 +152,11 @@ async def submit_review(
     db.commit()
     db.refresh(review)
     logger.info("Review submitted", extra={"review_id": review.id, "reviewer_id": user.id, "rating": review.rating})
-    return APIResponse(data=ReviewResponse.model_validate(review))
+
+    # [Sprint1-P0] 构造脱敏 response：匿名时抹 reviewer 字段
+    reviewee = db.get(User, review.reviewee_id)
+    response = _build_review_response(review, reviewee, is_self_view=user.id == review.reviewer_id)
+    return APIResponse(data=response)
 
 
 @router.get("", response_model=APIResponse[list[ReviewResponse]], summary="合作的评价列表")
@@ -113,4 +173,15 @@ async def list_reviews(
         select(Review).where(Review.cooperation_id == coop_id)
         .order_by(Review.created_at.desc())
     ).all()
-    return APIResponse(data=[ReviewResponse.model_validate(r) for r in reviews])
+
+    # [Sprint1-P0] 列表也走脱敏（匿名时 reviewer 字段抹除）
+    out = []
+    for r in reviews:
+        reviewer = db.get(User, r.reviewer_id) if r.reviewer_id else None
+        reviewee = db.get(User, r.reviewee_id) if r.reviewee_id else None
+        # 自己看自己写的评价时仍展示 reviewer_id
+        is_self_view = user.id == r.reviewer_id
+        out.append(_build_review_response(
+            r, reviewee, reviewer=reviewer, is_self_view=is_self_view
+        ))
+    return APIResponse(data=out)

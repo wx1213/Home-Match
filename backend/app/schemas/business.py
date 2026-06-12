@@ -51,7 +51,7 @@ class PropertyUpdate(BaseModel):
 
 
 class PropertyResponse(BaseModel):
-    """房源响应。"""
+    """房源响应（列表/简单详情用）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -68,6 +68,18 @@ class PropertyResponse(BaseModel):
     is_verified: bool
     status: str
     created_at: datetime
+
+
+class PropertyDetail(PropertyResponse):
+    """[Sprint1-P0] 房源详情（含脱敏卖家名片）。
+
+    比 :class:`PropertyResponse` 多一个 ``seller_brief`` 字段：
+    - **不暴露**真实姓名/手机/邮箱
+    - 只含显示名（"张先生"）、信用分、头像、是否认证
+    - 自己看自己的房源时，``seller_brief`` 也会脱敏（避免给自己看到自己真实姓名）
+    """
+
+    seller_brief: dict  # UserPublicBrief 形状（避免循环引用）
 
 
 # ============== Demand（需求） ==============
@@ -98,7 +110,7 @@ class DemandCreate(BaseModel):
 
 
 class DemandResponse(BaseModel):
-    """需求响应。"""
+    """需求响应（列表/简单详情用）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -114,6 +126,12 @@ class DemandResponse(BaseModel):
     status: str
     summary: str | None
     created_at: datetime
+
+
+class DemandDetail(DemandResponse):
+    """[Sprint1-P0] 需求详情（含脱敏买家名片）。"""
+
+    buyer_brief: dict  # UserPublicBrief 形状
 
 
 # ============== Recommendation（推荐） ==============
@@ -257,19 +275,28 @@ class ReviewCreate(BaseModel):
 
 
 class ReviewResponse(BaseModel):
-    """评价响应。"""
+    """[Sprint1-P0] 评价响应（含匿名化字段）。
+
+    匿名规则：
+    - ``is_anonymous=True`` 时，``reviewer_id`` 抹成 ``None``、``reviewer_brief=None``
+      → 对方只能看到匿名评价（"某经纪人"）
+    - ``is_anonymous=False`` 时，``reviewer_id`` 和 ``reviewer_brief`` 都展示
+    - ``reviewee_id`` 和 ``reviewee_brief`` 始终展示（评价对象是自己肯定能看到）
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     cooperation_id: int
-    reviewer_id: int
+    reviewer_id: int | None  # 匿名时为 None
     reviewee_id: int
     rating: int
     comment: str | None
     tags: list[str] = Field(default_factory=list)
     is_anonymous: bool
     created_at: datetime
+    reviewer_brief: dict | None = None  # 脱敏名片，匿名时 None
+    reviewee_brief: dict | None = None  # 脱敏名片
 
 
 # ============== User（用户） ==============

@@ -583,3 +583,289 @@ class TestKnownGaps:
         assert resp.status_code == 200, (
             f"expected 200 (gap), got {resp.status_code}: {resp.text}"
         )
+
+
+# ============================================================
+#  字段级脱敏测试（Sprint1-P0 #7）
+# ============================================================
+
+class TestPropertyDetailMasking:
+    """[Sprint1-P0] 房源详情字段级脱敏。"""
+
+    def test_property_detail_has_seller_brief(self, client, users):
+        """房源详情含 seller_brief 字段。"""
+        prop = client.post(
+            "/v1/properties",
+            json={
+                "community": "X", "layout": "1室", "area": 50.0,
+                "total_price": 1_000_000, "tags": [], "images": [],
+                "viewing_time": "随时",
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        resp = client.get(f"/v1/properties/{prop['id']}", headers=users["B_h"])
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert "seller_brief" in data
+        brief = data["seller_brief"]
+        assert brief["id"] == users["A_id"]
+
+    def test_seller_brief_does_not_leak_real_name(
+        self, client, users
+    ):
+        """seller_brief 不含真实姓名（User.name）。"""
+        prop = client.post(
+            "/v1/properties",
+            json={
+                "community": "X", "layout": "1室", "area": 50.0,
+                "total_price": 1_000_000, "tags": [], "images": [],
+                "viewing_time": "随时",
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        resp = client.get(f"/v1/properties/{prop['id']}", headers=users["B_h"])
+        data = resp.json()["data"]
+        brief = data["seller_brief"]
+        # 关键断言：'name' 字段不存在
+        assert "name" not in brief, (
+            f"seller_brief 暴露了真实姓名 'name' 字段: {brief}"
+        )
+        # display_name 应该是 "Alice先生" 形式（脱敏显示名）
+        assert brief["display_name"] == "Alice先生"
+
+    def test_seller_brief_does_not_leak_phone(
+        self, client, users
+    ):
+        """seller_brief schema 不包含手机/邮箱字段（静态校验）。"""
+        from app.domains.users.router import UserPublicBrief
+
+        fields = UserPublicBrief.model_fields.keys()
+        for forbidden in ("phone", "phone_encrypted", "phone_hash",
+                          "email", "id_card"):
+            assert forbidden not in fields, (
+                f"UserPublicBrief 暴露了 {forbidden}"
+            )
+
+        prop = client.post(
+            "/v1/properties",
+            json={
+                "community": "X", "layout": "1室", "area": 50.0,
+                "total_price": 1_000_000, "tags": [], "images": [],
+                "viewing_time": "随时",
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        resp = client.get(f"/v1/properties/{prop['id']}", headers=users["B_h"])
+        data = resp.json()["data"]
+        brief = data["seller_brief"]
+        # 关键断言：手机相关字段不存在
+        for forbidden in ("phone", "phone_encrypted", "phone_hash",
+                          "email", "id_card"):
+            assert forbidden not in brief, (
+                f"seller_brief 泄漏了 {forbidden}: {brief}"
+            )
+
+
+class TestDemandDetailMasking:
+    """[Sprint1-P0] 需求详情字段级脱敏。"""
+
+    def test_demand_detail_has_buyer_brief(self, client, users):
+        """需求详情含 buyer_brief 字段。"""
+        demand = client.post(
+            "/v1/demands",
+            json={
+                "district": "X", "price_min": 1_000_000, "price_max": 2_000_000,
+                "layouts": ["1室"], "qualification": "首套",
+                "viewing_time": ["周末"],
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        resp = client.get(f"/v1/demands/{demand['id']}", headers=users["B_h"])
+        data = resp.json()["data"]
+        assert "buyer_brief" in data
+        assert data["buyer_brief"]["id"] == users["A_id"]
+
+    def test_buyer_brief_does_not_leak_real_name(self, client, users):
+        """buyer_brief 不含真实姓名。"""
+        demand = client.post(
+            "/v1/demands",
+            json={
+                "district": "X", "price_min": 1_000_000, "price_max": 2_000_000,
+                "layouts": ["1室"], "qualification": "首套",
+                "viewing_time": ["周末"],
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        resp = client.get(f"/v1/demands/{demand['id']}", headers=users["B_h"])
+        brief = resp.json()["data"]["buyer_brief"]
+        assert "name" not in brief
+        assert "phone" not in brief
+
+
+class TestReviewAnonymousMasking:
+    """[Sprint1-P0] 评价匿名化字段处理。"""
+
+    def _setup_completed_coop(self, client, users) -> int:
+        """建一个已握手 + 双方都评完的合作（cooperation_id）。"""
+        demand = client.post(
+            "/v1/demands",
+            json={
+                "district": "X", "price_min": 1_000_000, "price_max": 2_000_000,
+                "layouts": ["1室"], "qualification": "首套",
+                "viewing_time": ["周末"],
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        inv = client.post(
+            "/v1/invitations",
+            json={"demand_id": demand["id"], "seller_id": users["B_id"]},
+            headers=users["A_h"],
+        ).json()["data"]
+        client.post(f"/v1/invitations/{inv['id']}/accept", headers=users["B_h"])
+        client.post(
+            f"/v1/invitations/{inv['id']}/proposal",
+            json={"content": "B 提交方案超 20 字符的方案内容描述详细。"},
+            headers=users["B_h"],
+        )
+        coop = client.post(
+            f"/v1/invitations/{inv['id']}/confirm",
+            headers=users["A_h"],
+        ).json()["data"]
+        return coop["id"]
+
+    def test_anonymous_review_hides_reviewer_id_for_others(
+        self, client, users
+    ):
+        """匿名评价：别人看时 reviewer_id 抹成 None。"""
+        # A 创建需求 + 邀请 + 双方都评 + B 匿名评
+        demand = client.post(
+            "/v1/demands",
+            json={
+                "district": "X", "price_min": 1_000_000, "price_max": 2_000_000,
+                "layouts": ["1室"], "qualification": "首套",
+                "viewing_time": ["周末"],
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        inv = client.post(
+            "/v1/invitations",
+            json={"demand_id": demand["id"], "seller_id": users["B_id"]},
+            headers=users["A_h"],
+        ).json()["data"]
+        client.post(f"/v1/invitations/{inv['id']}/accept", headers=users["B_h"])
+        client.post(
+            f"/v1/invitations/{inv['id']}/proposal",
+            json={"content": "B 提交方案超 20 字符的方案内容描述详细。"},
+            headers=users["B_h"],
+        )
+        coop = client.post(
+            f"/v1/invitations/{inv['id']}/confirm",
+            headers=users["A_h"],
+        ).json()["data"]
+
+        # A 先评（不匿名）
+        client.post(
+            f"/v1/cooperations/{coop['id']}/review",
+            json={"rating": 5, "comment": "A 给 B 的好评", "is_anonymous": False},
+            headers=users["A_h"],
+        )
+        # B 后评（匿名）
+        client.post(
+            f"/v1/cooperations/{coop['id']}/review",
+            json={"rating": 4, "comment": "B 匿名评 A", "is_anonymous": True},
+            headers=users["B_h"],
+        )
+
+        # A 看自己合作的评价列表
+        resp = client.get(
+            f"/v1/cooperations/{coop['id']}/review", headers=users["A_h"]
+        )
+        assert resp.status_code == 200
+        reviews = resp.json()["data"]
+        # 找到 B 那条匿名评价
+        b_review = next(
+            (r for r in reviews if r["comment"] == "B 匿名评 A"),
+            None,
+        )
+        assert b_review is not None
+        # 关键断言：匿名 + 别人看 → reviewer_id 抹 None
+        assert b_review["reviewer_id"] is None
+        assert b_review["reviewer_brief"] is None
+        # reviewee 仍是 A 自己 → 应该展示
+        assert b_review["reviewee_id"] == users["A_id"]
+        assert b_review["reviewee_brief"] is not None
+        # A 自己的实名评价
+        a_review = next(
+            (r for r in reviews if r["comment"] == "A 给 B 的好评"),
+            None,
+        )
+        assert a_review["reviewer_id"] == users["A_id"]  # 不匿名 → 展示
+
+    def test_anonymous_reviewer_self_view_sees_own_id(
+        self, client, users
+    ):
+        """匿名评价：评价人自己看自己写的 → 仍能看到 reviewer_id（方便回看）。"""
+        demand = client.post(
+            "/v1/demands",
+            json={
+                "district": "X", "price_min": 1_000_000, "price_max": 2_000_000,
+                "layouts": ["1室"], "qualification": "首套",
+                "viewing_time": ["周末"],
+            },
+            headers=users["A_h"],
+        ).json()["data"]
+        inv = client.post(
+            "/v1/invitations",
+            json={"demand_id": demand["id"], "seller_id": users["B_id"]},
+            headers=users["A_h"],
+        ).json()["data"]
+        client.post(f"/v1/invitations/{inv['id']}/accept", headers=users["B_h"])
+        client.post(
+            f"/v1/invitations/{inv['id']}/proposal",
+            json={"content": "B 提交方案超 20 字符的方案内容描述详细。"},
+            headers=users["B_h"],
+        )
+        coop = client.post(
+            f"/v1/invitations/{inv['id']}/confirm",
+            headers=users["A_h"],
+        ).json()["data"]
+
+        # A 评 B（匿名）
+        client.post(
+            f"/v1/cooperations/{coop['id']}/review",
+            json={"rating": 5, "comment": "我匿名评", "is_anonymous": True},
+            headers=users["A_h"],
+        )
+
+        # A 看自己合作的评价（自己就是评价人）
+        resp = client.get(
+            f"/v1/cooperations/{coop['id']}/review", headers=users["A_h"]
+        )
+        reviews = resp.json()["data"]
+        my_review = next(r for r in reviews if r["comment"] == "我匿名评")
+        # 自己看自己写的 → 实名展示
+        assert my_review["reviewer_id"] == users["A_id"]
+
+
+class TestUserPublicBriefMasking:
+    """[Sprint1-P0] UserPublicBrief 去掉真实姓名 + 联系方式。"""
+
+    def test_user_public_brief_no_real_name(self):
+        """UserPublicBrief schema 不再含 'name' 字段（真实姓名）。"""
+        from app.domains.users.router import UserPublicBrief
+
+        fields = UserPublicBrief.model_fields.keys()
+        assert "name" not in fields, (
+            f"UserPublicBrief 仍暴露 'name' 字段: {list(fields)}"
+        )
+        # 确认不含手机/邮箱
+        for forbidden in ("phone", "phone_encrypted", "phone_hash", "email"):
+            assert forbidden not in fields
+
+    def test_user_public_brief_has_safe_fields(self):
+        """UserPublicBrief 含展示名 + 信用分 + 头像 + 是否认证。"""
+        from app.domains.users.router import UserPublicBrief
+
+        fields = UserPublicBrief.model_fields.keys()
+        for safe in ("id", "display_name", "avatar_url", "credit_score", "is_verified"):
+            assert safe in fields, f"UserPublicBrief 缺 {safe} 字段"

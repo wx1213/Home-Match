@@ -15,6 +15,7 @@ from app.models.demand import Demand, DemandStatus
 from app.models.user import User
 from app.schemas.business import (
     DemandCreate,
+    DemandDetail,
     DemandResponse,
     RecommendationResponse,
     SellerMatch,
@@ -23,6 +24,17 @@ from app.schemas.common import APIResponse
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/demands", tags=["需求"])
+
+
+def _user_to_brief(u: User) -> dict:
+    """[Sprint1-P0] 把 User 转成脱敏名片 dict（不含真实姓名/手机/邮箱）。"""
+    return {
+        "id": u.id,
+        "display_name": u.display_name,
+        "avatar_url": u.avatar_url,
+        "credit_score": u.credit_score,
+        "is_verified": u.is_verified,
+    }
 
 
 
@@ -72,16 +84,28 @@ async def list_my_demands(
     return APIResponse(data=[DemandResponse.model_validate(d) for d in demands])
 
 
-@router.get("/{demand_id}", response_model=APIResponse[DemandResponse], summary="需求详情")
+@router.get("/{demand_id}", response_model=APIResponse[DemandDetail], summary="需求详情")
 async def get_demand(
     demand_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> APIResponse[DemandResponse]:
+) -> APIResponse[DemandDetail]:
+    """[Sprint1-P0] 返回需求详情 + 脱敏买家名片。
+
+    买家信息通过 ``buyer_brief`` 字段返回（同 UserPublicBrief 规则）：
+    - ``display_name``（非真实姓名）
+    - ``credit_score`` + ``is_verified`` + ``avatar_url``
+    """
     demand = db.get(Demand, demand_id)
     if not demand or demand.deleted_at:
         raise NotFoundError("需求不存在")
-    return APIResponse(data=DemandResponse.model_validate(demand))
+
+    buyer = db.get(User, demand.buyer_id) if demand.buyer_id else None
+    buyer_brief = _user_to_brief(buyer) if buyer else None
+
+    detail_dict = DemandResponse.model_validate(demand).model_dump()
+    detail_dict["buyer_brief"] = buyer_brief
+    return APIResponse(data=detail_dict)
 
 
 @router.get(
