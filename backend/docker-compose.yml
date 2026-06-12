@@ -1,53 +1,198 @@
+# ============================================================
+#  HomeMatch Docker Compose (Sprint2-#9)
+# ============================================================
+#
+# 3 个 profile：
+#   - default (无 profile): 起 PG + Redis（开发用，兼容 P2-4 现状）
+#   - prod: 起 backend + nginx + 强化版 PG/Redis（生产用）
+#   - tools: pgadmin（按需，--profile tools 启动）
+#
+# 用法：
+#   # 开发（PG + Redis 即可，后端用 uvicorn 本地跑）
+#   docker compose up -d
+#
+#   # 生产（PG + Redis + backend + nginx）
+#   docker compose --profile prod up -d
+#
+#   # 含 pgadmin
+#   docker compose --profile tools up -d
+#
+# 生产注意：
+#   - POSTGRES_PASSWORD / REDIS_PASSWORD 用 secret 注入（docker secrets 或 .env）
+#   - 镜像 tag 用 git sha（CI 注入），不要用 latest
+#   - nginx 在前端反代 HTTPS / 限流 / 压缩，详见 nginx.conf
+
 version: '3.8'
 
-# 本地开发环境：PG + Redis
-# 用法：docker compose up -d
-# 关闭：docker compose down
+# ============== 共享网络 ==============
+networks:
+  homa-net:
+    driver: bridge
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: homa-postgres
-    environment:
-      POSTGRES_USER: homa
-      POSTGRES_PASSWORD: devpass
-      POSTGRES_DB: homa
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U homa -d homa"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: homa-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # PG 管理界面（可选，访问 http://localhost:5050）
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: homa-pgadmin
-    profiles: ["tools"]  # 默认不启动，需要时用 --profile tools
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@local
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-
+# ============== 共享 volumes ==============
 volumes:
   pgdata:
   redisdata:
+  uploads:
+
+# ============== Services ==============
+services:
+  # ----------------- PostgreSQL（开发/生产都用）-----------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: homa-postgres
+    restart: unless-stopped
+    environment:
+      # 开发用默认密码；生产必须覆盖
+      POSTGRES_USER: ${POSTGRES_USER:-homa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_DB: ${POSTGRES_DB:-homa}
+      # 调优：连接上限 + WAL（[Sprint2-#11] 生产需要）
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - homa-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homa} -d ${POSTGRES_DB:-homa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # 生产资源限制（[Sprint2-#11]）
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ----------------- Redis（开发/生产都用）-----------------
+  redis:
+    image: redis:7-alpine
+    container_name: homa-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - homa-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 384M
+
+  # ----------------- Backend（仅 prod profile）-----------------
+  backend:
+    image: homematch-backend:${BACKEND_TAG:-latest}
+    container_name: homa-backend
+    restart: unless-stopped
+    profiles: ["prod"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # === 必填 ===
+      DATABASE_URL: postgresql://${POSTGRES_USER:-homa}:${POSTGRES_PASSWORD:-devpass}@postgres:5432/${POSTGRES_DB:-homa}
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      # === 应用配置（生产）===
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_BASE_URL: ${APP_BASE_URL:-https://api.homematch.com}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required in prod}
+      PHONE_ENCRYPTION_KEY: ${PHONE_ENCRYPTION_KEY:?PHONE_ENCRYPTION_KEY required in prod}
+      PHONE_HASH_KEY: ${PHONE_HASH_KEY:?PHONE_HASH_KEY required in prod}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://homematch.com,https://www.homematch.com}
+      # === 微信/Apple/SMS/OSS（按需）===
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-cn.hmatch.app}
+      SMS_PROVIDER: ${SMS_PROVIDER:-aliyun}
+      SMS_ACCESS_KEY_ID: ${SMS_ACCESS_KEY_ID:-}
+      SMS_ACCESS_KEY_SECRET: ${SMS_ACCESS_KEY_SECRET:-}
+      UPLOAD_MODE: ${UPLOAD_MODE:-oss}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:-oss-cn-beijing.aliyuncs.com}
+      OSS_BUCKET: ${OSS_BUCKET:-hmatch-prod}
+      UPLOAD_CDN_BASE: ${UPLOAD_CDN_BASE:-https://cdn.homematch.com}
+      # === 监控 ===
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: production
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - homa-net
+    # 注：健康检查在 Dockerfile 里已配（curl /healthz）
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ----------------- Nginx 反代（仅 prod profile）-----------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: homa-nginx
+    restart: unless-stopped
+    profiles: ["prod"]
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro  # 真实证书由 ops 放进来
+    networks:
+      - homa-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  # ----------------- PG 管理界面（opt-in）-----------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: homa-pgadmin
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    networks:
+      - homa-net
+    depends_on:
+      - postgres

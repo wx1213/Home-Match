@@ -1,0 +1,46 @@
+# Docker 上下文排除（[Sprint2-#9]）
+# 减小 build context → 加快 build + 减小镜像
+
+# 虚拟环境（Dockerfile 自己装）
+.venv
+venv
+
+# Python 编译产物
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+
+# 测试 + dev 数据
+tests/
+_test_home_match.db
+uploads/
+
+# IDE / 编辑器
+.vscode
+.idea
+.DS_Store
+
+# 环境变量（绝不打包进镜像）
+.env
+.env.local
+.env.production
+
+# Git
+.git
+.gitignore
+
+# CI 配置
+.github
+
+# 文档
+*.md
+docs/
+
+# Keystore（[Sprint1-P0] Android 签名文件不入 git；CI 单独注入）
+*.jks
+*.keystore
