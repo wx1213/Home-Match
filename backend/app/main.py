@@ -20,6 +20,7 @@ from app.core.errors import (
     _error_response,
 )
 from app.core.logging import get_logger, setup_logging
+from app.core.observability import init_sentry
 from app.core.ratelimit import limiter
 from app.core.redis_client import redis_client
 from app.schemas.common import APIResponse
@@ -47,6 +48,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
 async def lifespan(app: FastAPI):
     """应用生命周期。"""
     setup_logging()
+    init_sentry()  # [Sprint2-#11] Sentry 必须在 logging 之后、日志能记录 init 结果
     logger.info(
         "Starting HomeMatch backend",
         extra={"env": settings.app_env, "version": __version__, "debug": settings.app_debug},
@@ -174,6 +176,7 @@ Authorization: Bearer <access_token>
     # P0: 上传图片存到 upload_dir，通过 /uploads/<filename> 访问
     if settings.upload_mode == "local":
         from pathlib import Path
+
         from fastapi.staticfiles import StaticFiles
         upload_path = Path(settings.upload_dir).resolve()
         upload_path.mkdir(parents=True, exist_ok=True)

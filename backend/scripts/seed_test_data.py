@@ -41,8 +41,11 @@ from app.core.crypto import encrypt_phone, hash_phone  # noqa: E402
 from app.core.database import SessionLocal  # noqa: E402
 from app.core.logging import get_logger  # noqa: E402
 from app.domains.auth.mock_names import generate_mock_name  # noqa: E402
+from app.models.cooperation import Cooperation  # noqa: E402
 from app.models.demand import Demand, DemandStatus  # noqa: E402
+from app.models.invitation import Invitation  # noqa: E402
 from app.models.property import Property, PropertyStatus  # noqa: E402
+from app.models.review import Review  # noqa: E402
 from app.models.user import User, UserStatus  # noqa: E402
 
 logger = get_logger(__name__)
@@ -218,6 +221,16 @@ def _make_property_for_user(
     days_ago = rng.randint(0, 60)
     created_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
 
+    # 占位图：用 picsum.photos seed URL（稳定 HTTPS 公网图床，按 seed 出图）。
+    # 之前用 placeholder.homematch.local 是假域名，列表卡片永远 broken image。
+    # 生产环境上传的真实图片 URL 由 /v1/upload/image 返回（OSS / local）。
+    # 每条房源给 1-3 张（多图模拟真实场景），seed 加 idx 让卡片间图片不重复。
+    num_imgs = rng.randint(1, 3)
+    images = [
+        f"https://picsum.photos/seed/homamatch-{user_id}-{idx}-{i}/600/400"
+        for i in range(num_imgs)
+    ]
+
     return Property(
         seller_id=user_id,
         community=rng.choice(COMMUNITIES),
@@ -225,7 +238,7 @@ def _make_property_for_user(
         area=round(area, 1),
         total_price=round(total_price / 10000) * 10000,  # 圆整到万
         tags=tags,
-        images=[f"https://placeholder.homematch.local/img/{user_id}-{idx}.jpg"],
+        images=images,
         source_url=None,
         viewing_time=rng.choice(VIEWING_TIMES),
         is_verified=rng.random() < 0.7,  # 70% 已认证
@@ -366,7 +379,6 @@ def main() -> int:
     with SessionLocal() as db:
         if args.wipe:
             print("\n[1/4] wipe test_user_* 相关数据...")
-            from sqlalchemy import text as sql_text
             # 先删子表（properties/demands）+ invitations/cooperations/reviews/user
             # 用 wechat_unionid 判 user_id，再 cascade
             test_user_unionids = [f"mock_unionid_{spec.code[:16]}" for spec in TEST_USERS]
@@ -376,11 +388,9 @@ def main() -> int:
                 ).all()
             ]
             if test_user_ids:
-                # 用 user.id 找关联数据
-                from app.models.invitation import Invitation
-                from app.models.cooperation import Cooperation
-                from app.models.review import Review
-                for model in (Property, Demand, Invitation, Cooperation, Review):
+                # 用 user.id 找关联数据（Cooperation/Invitation/Review 已在文件顶部 import）
+                # F823: Property/Demand 是模块级 import，ruff 在长函数内误判为 local var
+                for model in (Property, Demand, Invitation, Cooperation, Review):  # noqa: F823
                     deleted = 0
                     for col in ("seller_id", "buyer_id", "reviewer_id", "reviewee_id"):
                         c = getattr(model, col, None)
@@ -394,7 +404,7 @@ def main() -> int:
                 db.commit()
                 print(f"  删掉 {len(test_user_ids)} 个 test user + 关联数据")
         else:
-            print(f"\n[1/4] 跳过 wipe（传 --wipe 才清）。")
+            print("\n[1/4] 跳过 wipe（传 --wipe 才清）。")
 
         # 2. 创建 10 个用户
         print(f"\n[2/4] seed {len(TEST_USERS)} 个 test user...")
@@ -436,8 +446,9 @@ def main() -> int:
 
         # 汇总
         from sqlalchemy import func as sql_func
-        from app.models.property import Property
+
         from app.models.demand import Demand
+        from app.models.property import Property
         user_count = db.scalar(sql_func.count(User.id)) or 0
         prop_count = db.scalar(sql_func.count(Property.id)) or 0
         dem_count = db.scalar(sql_func.count(Demand.id)) or 0

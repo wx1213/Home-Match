@@ -1,25 +1,27 @@
-"""Upload 域 - 文件上传接口（MVP：本地存储 + 静态托管）。
+"""Upload 域 - 文件上传接口（MVP：本地存储 + 阿里云 OSS）。
 
-MVP 阶段：
-- local 模式：存到 `upload_dir`（默认 ./uploads），通过 FastAPI StaticFiles 暴露
-- oss 模式：上传到阿里云 OSS（settings 配齐后启用）
+两种模式：
+- local 模式：存到 ``upload_dir``（默认 ./uploads），通过 FastAPI StaticFiles 暴露
+- oss 模式：上传到阿里云 OSS，URL 由 CDN 或 bucket endpoint 拼接
 
 设计要点（[D-010] + [D-017]）：
 - 白名单 MIME（防上传恶意文件）
+- **真实格式校验**（[Sprint3-#13]）—— 不只信 Content-Type 头
+- **EXIF 清理**（[Sprint3-#13]）—— 移除 GPS / 相机 / 序列号
+- **服务端 re-encode**（[Sprint3-#13]）—— 减小体积 + 二次清理
+- **decompression bomb 防护**（[Sprint3-#13]）
 - 文件名 = uuid4 + 原后缀（防路径冲突）
 - 限制单文件大小（防 OOM）
-- 水印：M2 接入，本期只做存储
+
+OSS 启用条件：``UPLOAD_MODE=oss`` + 4 个凭证 env 齐全
+具体见 [app/core/oss_client.py](../../core/oss_client.py)
 """
 from __future__ import annotations
 
-import os
-import shutil
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -27,6 +29,10 @@ from app.core.database import get_db
 from app.core.errors import AppError, ValidationError
 from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
+from app.domains.upload.image_processor import (
+    ImageProcessingError,
+    sanitize_and_reencode,
+)
 from app.models.user import User
 from app.schemas.common import APIResponse
 
@@ -74,12 +80,7 @@ def _check_upload_constraints(file: UploadFile) -> None:
 
 
 def _build_public_url(filename: str) -> str:
-    """构造文件可访问的 URL。"""
-    if settings.upload_mode == "oss":
-        # OSS 模式：CDN 或 endpoint
-        base = settings.upload_cdn_base or f"https://{settings.oss_bucket}.{settings.oss_endpoint}"
-        return f"{base.rstrip('/')}/uploads/{filename}"
-    # local 模式：app_base_url + /uploads/filename
+    """构造文件可访问的 URL（仅 local 模式）。OSS 模式由 oss_client.build_public_url 负责。"""
     return f"{settings.app_base_url.rstrip('/')}/uploads/{filename}"
 
 
@@ -99,12 +100,15 @@ async def upload_image(
 ) -> APIResponse[dict]:
     """上传单张图片，返回访问 URL。
 
-    MVP 流程（local 模式）：
+    流程（[Sprint3-#13] 加固）：
     1. 校验 MIME 白名单
     2. 流式读取 + 限制大小（防 OOM）
-    3. 生成 uuid 文件名 + 保留原后缀
-    4. 存到 upload_dir
-    5. 返回 {url, filename, size}
+    3. **PIL 真实解码**（不只信 Content-Type 头）
+    4. **EXIF 清理**（GPS/相机/序列号）
+    5. **服务端 re-encode**（减小体积 + 二次清理）
+    6. 生成 uuid 文件名 + 用真实 content_type 决定后缀
+    7. 存到 upload_dir 或上传 OSS
+    8. 返回 {url, filename, size, content_type, width, height}
     """
     _check_upload_constraints(file)
 
@@ -120,38 +124,65 @@ async def upload_image(
             detail={"size": size, "limit": max_bytes},
         )
 
-    # 2. 生成文件名
-    suffix = Path(file.filename or "").suffix.lower() or ".jpg"
-    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".heic"}:
-        suffix = ".jpg"  # 兜底
+    # 2. [Sprint3-#13] 真实解码 + EXIF 清理 + re-encode
+    #    失败抛 ImageProcessingError → 400 UploadError
+    try:
+        clean_bytes, real_content_type, width, height = sanitize_and_reencode(content)
+    except ImageProcessingError as e:
+        raise UploadError(str(e), detail={"stage": "image_processing"}) from e
+
+    # 3. 生成文件名（用真实 content_type 决定后缀，不信 client）
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+    }
+    suffix = ext_map.get(real_content_type, ".jpg")
     filename = f"{uuid.uuid4().hex}{suffix}"
 
-    # 3. 保存
+    # 4. 保存
     if settings.upload_mode == "local":
         upload_path = _ensure_upload_dir()
         target = upload_path / filename
         with target.open("wb") as f:
-            f.write(content)
+            f.write(clean_bytes)
         url = _build_public_url(filename)
         logger.info(
             "Image uploaded (local)",
             extra={
                 "user_id": user.id,
-                "stored_filename": filename,  # ⚠️ 不要用 "filename"，会跟 LogRecord.filename 冲突
-                "size": size,
-                "content_type": file.content_type,
+                "stored_filename": filename,
+                "size": len(clean_bytes),
+                "content_type": real_content_type,
+                "width": width,
+                "height": height,
             },
         )
     else:
-        # OSS 模式（M2）：这里替换为 oss2.bucket.put_object
-        # 本期 MVP 暂不实现，强制走 local
-        raise UploadError("OSS 模式尚未实现，请用 UPLOAD_MODE=local")
+        # OSS 模式：走 app.core.oss_client（lru_cache 单例 bucket）
+        from app.core.oss_client import upload_bytes as oss_upload_bytes
+
+        url = oss_upload_bytes(filename, clean_bytes, real_content_type)
+        logger.info(
+            "Image uploaded (oss)",
+            extra={
+                "user_id": user.id,
+                "stored_filename": filename,
+                "size": len(clean_bytes),
+                "content_type": real_content_type,
+                "url": url,
+                "width": width,
+                "height": height,
+            },
+        )
 
     return APIResponse(data={
         "url": url,
         "filename": filename,
-        "size": size,
-        "content_type": file.content_type,
+        "size": len(clean_bytes),
+        "content_type": real_content_type,
+        "width": width,
+        "height": height,
     })
 
 
