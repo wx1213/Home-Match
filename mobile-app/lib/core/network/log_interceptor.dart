@@ -68,6 +68,23 @@ dynamic _sanitize(dynamic obj) {
   return obj;
 }
 
+/// [Sprint3 修复] 检测 body 是否含不能 JSON 序列化的对象（multipart）。
+///  返回 true 表示**完全不打 body**（避免触发 DioEncoder 抛错）。
+bool _containsNonEncodable(dynamic obj) {
+  if (obj is FormData) return true;
+  if (obj is List) {
+    for (final x in obj) {
+      if (_containsNonEncodable(x)) return true;
+    }
+  }
+  if (obj is Map) {
+    for (final v in obj.values) {
+      if (_containsNonEncodable(v)) return true;
+    }
+  }
+  return false;
+}
+
 /// 把 dio 的 RequestOptions/Response 对象转成可安全打印的字符串
 /// （public 让单测能直接调用验证脱敏）
 String formatLogLine({
@@ -93,10 +110,24 @@ String formatLogLine({
   }
 
   // body 只在 dev/staging 打，且**先脱敏**
+  // 注意：dio v5 的 FormData / MultipartFile 不能被 JsonEncoder 序列化
+  //       如果 try 转换时抛错，会导致整个请求失败（[Sprint3 修复]）
   if (body != null && !AppEnv.isProduction) {
-    final sanitized = _sanitize(body);
-    final encoded = const JsonEncoder.withIndent('  ').convert(sanitized);
-    buf.write('\n  BODY: $encoded');
+    // FormData / Map 包含 FormData / 其它不能 JSON 序列化的对象
+    // → 只打 method+path，不打 body
+    final shouldSkipBody = _containsNonEncodable(body);
+    if (!shouldSkipBody) {
+      try {
+        final sanitized = _sanitize(body);
+        final encoded = const JsonEncoder.withIndent('  ').convert(sanitized);
+        buf.write('\n  BODY: $encoded');
+      } catch (e) {
+        // 兜底：序列化失败不影响请求主流程
+        buf.write('\n  BODY: <${body.runtimeType} not serializable>');
+      }
+    } else {
+      buf.write('\n  BODY: <multipart — omitted>');
+    }
   }
 
   return buf.toString();
@@ -166,6 +197,7 @@ class SafeLogInterceptor extends Interceptor {
         ? null
         : DateTime.now().difference(start).inMilliseconds;
 
+    // [Sprint3 调试] 打印完整异常类型 + 堆栈，方便诊断上传等 multipart 请求失败
     debugPrint(formatLogLine(
       method: err.requestOptions.method,
       path: err.requestOptions.path,
@@ -174,6 +206,10 @@ class SafeLogInterceptor extends Interceptor {
       body: err.response?.data,
       error: err.message,
     ));
+    debugPrint('  [DioError type=${err.type}] ${err.error}');
+    if (err.stackTrace != null) {
+      debugPrint('  [StackTrace] ${err.stackTrace.toString().split('\n').take(8).join('\n')}');
+    }
     handler.next(err);
   }
 }
