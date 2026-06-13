@@ -24,8 +24,12 @@ class InvitationService {
   }
 
   Future<Invitation> acceptInvitation(int id) async {
-    final resp = await _dio.post('/v1/invitations/$id/accept');
-    return Invitation.fromJson(resp.data['data'] as Map<String, dynamic>);
+    // [Sprint3 修复] accept 响应是简化的 InvitationAcceptResponse
+    //   （只有 invitation_id + status + proposal_deadline），
+    //   直接 fromJson 完整 Invitation 会因缺 id/demand_id/buyer_id 等 cast null 失败
+    // 修法：accept 后调 getInvitation 拿完整对象（跟 rejectInvitation 一致）
+    await _dio.post('/v1/invitations/$id/accept');
+    return getInvitation(id);
   }
 
   Future<Invitation> rejectInvitation(int id, {String? reason}) async {
