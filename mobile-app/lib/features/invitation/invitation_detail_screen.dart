@@ -573,12 +573,21 @@ class _BarWithTwoActions extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 icon: Icon(secondaryIcon, size: 18),
-                label: Text(secondaryLabel),
+                // [Sprint3 修复] 按钮文字被 wrap 换行（"拒 绝 方 案"）
+                //  → Text 加 maxLines:1 + softWrap:false
+                //  → OutlinedButton 减水平 padding 给文字让位
+                label: Text(
+                  secondaryLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.fade,
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: c,
                   side: c != null
                       ? BorderSide(color: c.withValues(alpha: 0.3))
                       : null,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
                 onPressed: onSecondary,
               ),
@@ -588,7 +597,13 @@ class _BarWithTwoActions extends StatelessWidget {
               flex: 2,
               child: FilledButton.icon(
                 icon: Icon(primaryIcon, size: 18),
-                label: Text(primaryLabel),
+                // [Sprint3 修复] 同样确保主按钮文字不换行
+                label: Text(
+                  primaryLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.fade,
+                ),
                 onPressed: onPrimary,
               ),
             ),
