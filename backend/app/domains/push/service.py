@@ -86,7 +86,6 @@ class PushService:
         priority: PushPriority = PushPriority.NORMAL,
     ) -> int:
         """给用户的所有活跃设备发推送。返回成功数。"""
-        devices = self.db.scalars
         devices = self.db.scalars(
             select(Device).where(
                 Device.user_id == user_id,

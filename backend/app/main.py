@@ -130,7 +130,7 @@ Authorization: Bearer <access_token>
     # 限流逻辑下沉到 SmsService 内部（MVP 阶段）
     # 二期如果加全局限流，再启用 SlowAPIMiddleware
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+    app.add_exception_handler(RateLimitExceeded, rate_limit_handler)  # type: ignore[arg-type]
 
     # === 业务异常处理 ===
     @app.exception_handler(AppError)

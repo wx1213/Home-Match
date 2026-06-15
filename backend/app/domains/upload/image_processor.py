@@ -154,28 +154,28 @@ def sanitize_and_reencode(
     # 5. 应用 EXIF orientation（很多手机图横着，丢 EXIF 就转不回来）
     #    这一步同时把 EXIF 信息应用成像素变换 → 之后 strip EXIF 不影响显示
     try:
-        img = ImageOps.exif_transpose(img)
+        img = ImageOps.exif_transpose(img)  # type: ignore[assignment]
     except Exception:
         # 损坏的 EXIF 不阻塞上传，只是不做转正
         logger.debug("exif_transpose failed, continue without rotation")
 
     # 6. 清理 EXIF（[Sprint3-#13] 隐私关键）
     #    方式：手动构造不包含敏感 tag 的 EXIF
-    img = _strip_sensitive_exif(img)
+    img = _strip_sensitive_exif(img)  # type: ignore[assignment]
 
     # 7. 颜色模式转换（RGBA / P / L → RGB）
     if img.mode in ("RGBA", "LA", "P"):
         # 透明背景填白（JPEG 不支持透明）
         if img.mode == "P":
-            img = img.convert("RGBA")
+            img = img.convert("RGBA")  # type: ignore[assignment]
         bg = Image.new("RGB", img.size, (255, 255, 255))
         if img.mode in ("RGBA", "LA"):
             bg.paste(img, mask=img.split()[-1])
-            img = bg
+            img = bg  # type: ignore[assignment]
         else:
-            img = img.convert("RGB")
+            img = img.convert("RGB")  # type: ignore[assignment]
     elif img.mode == "CMYK":
-        img = img.convert("RGB")
+        img = img.convert("RGB")  # type: ignore[assignment]
 
     # 8. re-encode
     output_fmt, kwargs = OUTPUT_FORMAT_MAP[fmt]

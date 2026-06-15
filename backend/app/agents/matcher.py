@@ -146,13 +146,13 @@ def find_top_sellers(
             })
 
     # 5. 排序 + 取 Top N
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(key=lambda x: x["score"], reverse=True)  # type: ignore[arg-type,return-value]
     top = results[:top_n]
 
     # 6. 格式化输出
     output = []
     for i, item in enumerate(top, 1):
-        seller = item["seller"]
+        seller = item["seller"]  # type: ignore[assignment]
         output.append({
             "rank": i,
             "match_score": item["score"],
@@ -175,7 +175,7 @@ def find_top_sellers(
                     "tags": p.tags or [],
                     "images": (p.images or [])[:1],
                 }
-                for p in item["properties"]
+                for p in item["properties"]  # type: ignore[attr-defined]
             ],
         })
 

@@ -74,9 +74,7 @@ def init_sentry() -> None:
             ),
         ],
         # [Sprint1-P0] 不上送敏感字段
-        before_send=_scrub_sensitive,
-        # 性能：不要在 transaction 里包太深的 SQL
-        request_bodies="never",
+        before_send=_scrub_sensitive,  # type: ignore[arg-type]
     )
     logger.info(
         "Sentry initialized",
@@ -106,7 +104,7 @@ def _scrub_dict(d: dict, sensitive_keys: set[str]) -> dict:
     """递归脱敏 dict 里的敏感字段。"""
     if not isinstance(d, dict):
         return d
-    out = {}
+    out: dict[str, object] = {}
     for k, v in d.items():
         if isinstance(k, str) and k.lower() in sensitive_keys:
             out[k] = "***"

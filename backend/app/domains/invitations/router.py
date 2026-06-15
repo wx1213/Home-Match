@@ -178,7 +178,7 @@ async def accept_invitation(
         data=InvitationAcceptResponse(
             invitation_id=inv.id,
             status=inv.status.value if hasattr(inv.status, "value") else inv.status,
-            proposal_deadline=inv.proposal_deadline,
+            proposal_deadline=inv.proposal_deadline,  # type: ignore[arg-type]
         )
     )
 

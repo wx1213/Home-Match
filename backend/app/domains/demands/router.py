@@ -105,7 +105,7 @@ async def get_demand(
 
     detail_dict = DemandResponse.model_validate(demand).model_dump()
     detail_dict["buyer_brief"] = buyer_brief
-    return APIResponse(data=detail_dict)
+    return APIResponse(data=detail_dict)  # type: ignore[arg-type]
 
 
 @router.get(

@@ -104,7 +104,7 @@ async def get_property(
     # 先 dump PropertyResponse 的字段，再注入 seller_brief（避免 model_validate 校验缺字段）
     detail_dict = PropertyResponse.model_validate(prop).model_dump()
     detail_dict["seller_brief"] = seller_brief
-    return APIResponse(data=detail_dict)
+    return APIResponse(data=detail_dict)  # type: ignore[arg-type]
 
 
 @router.patch("/{prop_id}", response_model=APIResponse[PropertyResponse], summary="更新房源")

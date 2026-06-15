@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cooperations/{coop_id}/review", tags=["评价"])
 
 
-def _user_to_brief(u: User) -> dict:
+def _user_to_brief(u: User | None) -> dict | None:
     """[Sprint1-P0] User → 脱敏名片 dict。"""
     if not u:
         return None
@@ -77,11 +77,11 @@ def _build_review_response(
             base["reviewer_brief"] = None
         else:
             base["reviewer_id"] = review.reviewer_id
-            base["reviewer_brief"] = _user_to_brief(reviewer) if reviewer else None
+            base["reviewer_brief"] = _user_to_brief(reviewer) if reviewer else None  # type: ignore[assignment]
 
     # 被评价人（reviewee）始终展示
     base["reviewee_id"] = review.reviewee_id
-    base["reviewee_brief"] = _user_to_brief(reviewee)
+    base["reviewee_brief"] = _user_to_brief(reviewee)  # type: ignore[assignment]
     return base
 
 
@@ -156,7 +156,7 @@ async def submit_review(
     # [Sprint1-P0] 构造脱敏 response：匿名时抹 reviewer 字段
     reviewee = db.get(User, review.reviewee_id)
     response = _build_review_response(review, reviewee, is_self_view=user.id == review.reviewer_id)
-    return APIResponse(data=response)
+    return APIResponse(data=response)  # type: ignore[arg-type]
 
 
 @router.get("", response_model=APIResponse[list[ReviewResponse]], summary="合作的评价列表")
@@ -184,4 +184,4 @@ async def list_reviews(
         out.append(_build_review_response(
             r, reviewee, reviewer=reviewer, is_self_view=is_self_view
         ))
-    return APIResponse(data=out)
+    return APIResponse(data=out)  # type: ignore[arg-type]

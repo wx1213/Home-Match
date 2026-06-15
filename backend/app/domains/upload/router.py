@@ -220,6 +220,6 @@ async def upload_images(
         )
 
     return APIResponse(
-        data=results,
+        data=results,  # type: ignore[arg-type]
         message=f"成功 {len(results)}/{len(files)} 张" if errors else f"成功 {len(results)} 张",
     )

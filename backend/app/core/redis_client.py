@@ -46,7 +46,8 @@ def safe_get(key: str) -> str | None:
     其他异常（语法错等）原样抛出。
     """
     try:
-        return redis_client.get(key)
+        value = redis_client.get(key)
+        return value.decode() if isinstance(value, bytes) else value
     except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
         logger.warning(
             "Redis GET failed, degrading to no-cache",

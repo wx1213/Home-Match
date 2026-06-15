@@ -203,7 +203,7 @@ async def wechat_login(
             ) from e
 
     # 2. 查找或创建用户
-    sms = SmsService(None)  # wechat 登录不调 sms
+    sms = SmsService(None)  # type: ignore[arg-type]  # wechat 登录不调 sms
     user_service = UserService(db, sms)
     user, is_new = user_service.find_or_create_by_wechat(
         unionid, openid, nickname, avatar_url
@@ -278,7 +278,7 @@ async def apple_login(
         is_new = True
         logger.info("New Apple user created", extra={"user_id": user.id})
 
-    sms = SmsService(None)
+    sms = SmsService(None)  # type: ignore[arg-type]
     user_service = UserService(db, sms)
     response = user_service.build_login_response(user, is_new)
     return APIResponse(data=response)

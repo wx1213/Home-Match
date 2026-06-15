@@ -57,6 +57,8 @@ def _compute_rating_avg(db: Session, user_id: int) -> tuple[float, int]:
             Review.deleted_at.is_(None),
         )
     ).first()
+    if result is None:
+        return 0.0, 0
     avg = float(result[0]) if result[0] else 0.0
     count = int(result[1]) if result[1] else 0
     return avg, count
