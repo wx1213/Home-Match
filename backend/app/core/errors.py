@@ -210,7 +210,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             extra={
                 "path": request.url.path,
                 "code": exc.code,
-                "message": exc.message,
+                "err_message": exc.message,  # 修复：原 key 'message' 跟 LogRecord 内置字段冲突
                 "detail": exc.detail,
             },
         )
@@ -238,7 +238,9 @@ def register_exception_handlers(app: FastAPI) -> None:
             "Unhandled exception",
             extra={"path": request.url.path, "error": str(exc), "type": exc.__class__.__name__},
         )
-        return _error_response(10000, "内部错误", 500)
+        # 修复：原代码 hardcoded 10000 (AppError 基类)，应与 InternalError.code 一致 (10006)
+        # 前端按 code 做 case 分支，10006 才是"服务器异常"
+        return _error_response(InternalError.code, InternalError.message, InternalError.http_status)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(
@@ -255,14 +257,8 @@ def register_exception_handlers(app: FastAPI) -> None:
             {"errors": exc.errors()},
         )
 
-    @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception):
-        logger.exception(
-            "Unhandled exception",
-            extra={"path": request.url.path, "error": str(exc)},
-        )
-        return _error_response(
-            InternalError.code,
-            "服务器开小差了",
-            InternalError.http_status,
-        )
+    # 注：原代码这里有第二个 `@app.exception_handler(Exception)`，会被 generic 覆盖
+    # （starlette handler dict 按 exception_class 索引，后注册覆盖前注册）。
+    # generic_exception_handler 已经覆盖了所有 Exception，包括 transitions.MachineError
+    # 和未处理异常的兜底（500），不需要再注册一次。
+    # 修复：删除冗余 unhandled_exception_handler
