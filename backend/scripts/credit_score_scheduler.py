@@ -42,12 +42,17 @@ logger = logging.getLogger("credit_score_cron")
 
 
 def _seconds_until_next_3am() -> float:
-    """计算到下一个 0:00:00 的秒数。"""
+    """计算到下一个 0:00:00 的秒数。
+
+    注意：函数名 `_seconds_until_next_3am` 是历史遗留 — 实际是 0:00:00。
+    """
     now = datetime.now()
     next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     # 如果今天还没到 0 点，跨日的话 next_run 应该是今天 0 点
     today_run = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    if now < today_run:
+    # 修复：原代码 `if now < today_run` 漏掉 now == today_run（0 点整），
+    # 会导致下次执行变成 24 小时后，今天的 cron 永远不触发
+    if now <= today_run:
         next_run = today_run
     delta = (next_run - now).total_seconds()
     return max(1.0, delta)

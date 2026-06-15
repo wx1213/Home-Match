@@ -89,7 +89,7 @@ void main() {
         'community': '望京西园四区',
         'layout': '3室1厅',
         'area': 89.5,
-        'total_price': 850.0,  // 万元 = 850 万
+        'total_price': 8500000.0,  // 元（不是万）= 850 万
         'tags': ['南北通透', '近地铁', '满五唯一'],
         'images': [
           'https://oss.example.com/properties/123/cover.jpg',
@@ -109,7 +109,7 @@ void main() {
       expect(p.community, '望京西园四区');
       expect(p.layout, '3室1厅');
       expect(p.area, 89.5);
-      expect(p.totalPrice, 850.0);
+      expect(p.totalPrice, 8500000.0);
       expect(p.tags, ['南北通透', '近地铁', '满五唯一']);
       expect(p.images, hasLength(2));
       expect(p.viewingTime, '周末可看');
@@ -127,7 +127,7 @@ void main() {
         'community': '测试小区',
         'layout': '2室1厅',
         'area': 60.0,
-        'total_price': 300.0,
+        'total_price': 3000000.0,  // 300 万 = 3,000,000 元
         'tags': null,           // 容忍 null
         'images': null,         // 容忍 null
         'viewing_time': '随时看房',
@@ -146,23 +146,25 @@ void main() {
       expect(p.status, 'delisted');
     });
 
-    test('total_price 单位是万元（不是元）', () {
-      // 后端约定：total_price 单位 = 万元
-      // 前端 UI 显示要 /10000 转成"万"
-      // 850 万 = 850.0（不是 8500000.0）
+    test('total_price 后端存元（不是万元）→ UI /10000 转万', () {
+      // 后端约定：total_price 单位 = 元
+      // 验证：PropertyCreate schema json_schema_extra example = 4200000 (420 万 = 4,200,000 元)
+      // 验证：seed_test_data.py 用 1_500_000 ~ 15_000_000 (150 万 ~ 1500 万)
+      // 验证：property_form_screen.dart:218 用户输入 850 (万) → 提交 850 * 10000 = 8500000 (元)
+      // Flutter UI 显示：(8500000 / 10000).toStringAsFixed(0) = "850" 万
       final p = Property.fromJson({
         'id': 1, 'seller_id': 1, 'community': 'x', 'layout': '1室',
-        'area': 50.0, 'total_price': 850.0,
+        'area': 50.0, 'total_price': 8500000.0,  // 850 万 = 8,500,000 元
         'tags': [], 'images': [], 'viewing_time': '随时',
         'is_verified': false, 'status': 'active',
         'created_at': '2026-01-01T00:00:00',
       });
-      // UI 计算: (850.0 / 10000).toStringAsFixed(0) = "0"
-      // 等等，这是个 bug — 850.0 已经是万了，不应该再 /10000
-      // 后端 schema 实际是 total_price 存的是元，转万要 /10000
-      // 测试断言当前实现行为（850 → "0"），避免假设 schema
+      // 正确链路：后端 8500000 元 → UI /10000 = 850 万
       final display = (p.totalPrice / 10000).toStringAsFixed(0);
-      expect(display, '0');  // 文档化当前行为：850 元 → "0 万"（待修）
+      expect(display, '850');
+      // 单价（元/㎡）= totalPrice / area
+      final unitPrice = (p.totalPrice / p.area).round();
+      expect(unitPrice, 170000);  // 850 万 / 50 ㎡ = 17 万/㎡
     });
   });
 
@@ -197,7 +199,7 @@ void main() {
       final p = Property.fromJson({
         'id': 1, 'seller_id': 1,
         'community': '望京西园', 'layout': '3室1厅',
-        'area': 89.5, 'total_price': 850.0,
+        'area': 89.5, 'total_price': 8500000.0,  // 850 万 = 8,500,000 元
         'tags': ['南北通透'], 'images': ['https://x.com/1.jpg'],
         'viewing_time': '周末',
         'source_url': 'https://ke.com/x',
@@ -219,7 +221,8 @@ void main() {
       expect(find.text('上架中'), findsOneWidget);
       // 实勘徽章
       expect(find.text('已实勘'), findsOneWidget);
-      // 价格（850 / 10000 = 0 → 文档化当前 bug）
+      // 价格（850 万 = 8,500,000 元 / 10000 = 850）
+      expect(find.text('850 万'), findsOneWidget);
       // 社区 + 户型 + 面积
       expect(find.text('望京西园'), findsOneWidget);
       expect(find.text('3室1厅 · 90㎡'), findsOneWidget);
