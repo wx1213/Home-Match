@@ -1,7 +1,8 @@
 #!/bin/bash
 # HomeMatch dev users seed 脚本
 # 用法：./scripts/seed_dev_users.sh [--wipe]
-# 效果：保证 6 个稳定 dev code 永远存在（见 docs/05-dev-users.md）
+# 效果：保证 7 个稳定 dev code 永远存在（见 docs/05-dev-users.md）
+#       含 1 个 dev_admin（is_admin=True）用于本地验证 require_admin 链路
 #       --wipe 会先清掉所有 mock user（⚠️ cascade 删 properties/demands/...）
 
 set -e

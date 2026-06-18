@@ -87,6 +87,13 @@ DEV_USERS: list[DevUserSpec] = [
         credit_score=70.0,
         note="E2E 测试跑用户（被 e2e_test_v2.py 复用）",
     ),
+    DevUserSpec(
+        code="dev_admin",
+        name="DevAdmin",
+        role="both",
+        credit_score=90.0,
+        note="本地 admin 链路验证（require_admin / /v1/admin/me）",
+    ),
 ]
 
 
@@ -125,6 +132,7 @@ def ensure_dev_user(db, spec: DevUserSpec) -> tuple[User, bool]:
         avatar_url=None,
         status=UserStatus.ACTIVE,
         is_verified=True,  # dev 身份默认通过认证，避免被推荐算法降权
+        is_admin=(spec.code == "dev_admin"),  # dev_admin 走 admin 链路（require_admin / /v1/admin/me）
         credit_score=spec.credit_score,
         rating_avg=spec.credit_score / 20.0,  # 80 -> 4.0 星
         rating_count=0,
