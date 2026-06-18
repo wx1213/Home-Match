@@ -16,6 +16,8 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../core/network/beike_parse_service.dart';
+import '../../core/widgets/paste_link_button.dart';
 import '../upload/upload_service.dart';
 import 'property_models.dart';
 import 'property_service.dart';
@@ -39,6 +41,8 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
   final _communityCtl = TextEditingController();
   final _areaCtl = TextEditingController(text: '90');
   final _priceCtl = TextEditingController(text: '420');
+  final _sourceUrlCtl = TextEditingController(); // P0 任务 1：贝壳链接
+  BeikeParseResult? _parsedBeike;                // 解析后的预览数据
   String _layout = '3室1厅';
   String _viewingTime = '工作日晚上+周末';
   final _tags = <String>{};
@@ -74,6 +78,7 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
     _communityCtl.dispose();
     _areaCtl.dispose();
     _priceCtl.dispose();
+    _sourceUrlCtl.dispose();
     super.dispose();
   }
 
@@ -95,6 +100,7 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
         _priceCtl.text = (p.totalPrice / 10000).toString();
         _layout = _sanitizeLayout(p.layout);
         _viewingTime = p.viewingTime;
+        _sourceUrlCtl.text = p.sourceUrl ?? '';
         _tags
           ..clear()
           ..addAll(p.tags);
@@ -204,6 +210,16 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
         if (_isVerified != _original?.isVerified) {
           patch['is_verified'] = _isVerified;
         }
+        // P0 任务 1：source_url 编辑
+        final newSourceUrl = _sourceUrlCtl.text.trim().isEmpty
+            ? null
+            : _sourceUrlCtl.text.trim();
+        final origSourceUrl = (_original?.sourceUrl ?? '').trim().isEmpty
+            ? null
+            : _original!.sourceUrl;
+        if (newSourceUrl != origSourceUrl) {
+          patch['source_url'] = newSourceUrl;
+        }
         if (patch.isNotEmpty) {
           await ref.read(propertyServiceProvider)
               .updateProperty(widget.propertyId!, patch);
@@ -220,6 +236,9 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
               images: _images,
               viewingTime: _viewingTime,
               isVerified: _isVerified,
+              sourceUrl: _sourceUrlCtl.text.trim().isEmpty
+                  ? null
+                  : _sourceUrlCtl.text.trim(),
             );
         _toast('已发布');
       }
@@ -272,6 +291,33 @@ class _PropertyFormScreenState extends ConsumerState<PropertyFormScreen> {
                     // ====== 图片区 ======
                     _buildImageSection(color),
                     const SizedBox(height: 16),
+
+                    // ====== P0 任务 1：贝壳链接粘贴入口 ======
+                    // 仅创建模式显示；编辑模式 source_url 一般不变
+                    if (!_isEdit) ...[
+                      PasteLinkButton(
+                        onParsed: (url, result) {
+                          setState(() {
+                            _sourceUrlCtl.text = url;
+                            _parsedBeike = result;
+                          });
+                        },
+                      ),
+                      if (_parsedBeike != null) ...[
+                        const SizedBox(height: 8),
+                        BeikePreviewCard(
+                          url: _sourceUrlCtl.text,
+                          result: _parsedBeike!,
+                          onClear: () {
+                            setState(() {
+                              _sourceUrlCtl.clear();
+                              _parsedBeike = null;
+                            });
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
 
                     // ====== 基础信息 ======
                     TextFormField(
