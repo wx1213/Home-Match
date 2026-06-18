@@ -76,6 +76,8 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
         nullable=False,
     )
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # MVP admin 权限位：bool 二元；二期可扩 role 枚举（admin/super_admin/...）
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # === 元数据 ===
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -84,6 +86,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (
         Index("ix_users_status_credit", "status", "credit_score"),
         Index("ix_users_wechat_unionid", "wechat_unionid"),
+        Index("ix_users_is_admin", "is_admin"),
     )
 
     def __repr__(self) -> str:

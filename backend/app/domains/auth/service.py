@@ -203,6 +203,7 @@ class UserService:
             credit_score=user.credit_score,
             is_new=is_new,
             is_verified=user.is_verified,
+            is_admin=user.is_admin,
         )
         return LoginResponse(
             access_token=access,

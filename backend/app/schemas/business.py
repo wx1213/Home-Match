@@ -317,6 +317,7 @@ class UserResponse(BaseModel):
     activity_count_30d: int
     completed_count: int
     is_verified: bool
+    is_admin: bool = False
     status: str
     credit_score_updated_at: datetime | None = None
 

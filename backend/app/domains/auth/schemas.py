@@ -112,6 +112,7 @@ class UserInfo(BaseModel):
     credit_score: float
     is_new: bool = Field(default=False, description="是否新注册用户")
     is_verified: bool = Field(default=False, description="是否完成资质审核")
+    is_admin: bool = Field(default=False, description="是否 admin（客户端用于显示 admin 入口）")
 
 
 class TokenPair(BaseModel):
