@@ -68,3 +68,20 @@ def get_optional_current_user(
         return get_current_user(authorization=authorization, db=db)
     except Exception:
         return None
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """FastAPI 依赖：要求当前用户是 admin。
+
+    用法:
+        @router.get("/admin/xxx")
+        def handler(user: User = Depends(require_admin)):
+            ...
+
+    注：token 是 stateless 的，不读 admin claim；admin 权限每次都从 DB
+    校验（get_current_user 已查过 user 对象，直接读字段即可）。
+    """
+    if not user.is_admin:
+        from app.core.errors import PermissionDeniedError
+        raise PermissionDeniedError("需要 admin 权限")
+    return user

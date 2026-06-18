@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.agents import llm_router as ai_router
 from app.api.v1 import health
+from app.domains.admin import router as admin_router
 from app.domains.auth import router as auth_router
 from app.domains.cooperations import router as cooperations_router
 from app.domains.demands import router as demands_router
@@ -20,6 +21,7 @@ from app.domains.users import router as users_router
 api_router = APIRouter(prefix="/v1")
 api_router.include_router(health.router)
 api_router.include_router(auth_router.router)
+api_router.include_router(admin_router.router)
 api_router.include_router(ai_router.router)
 api_router.include_router(devices_router.router)
 api_router.include_router(properties_router.router)
