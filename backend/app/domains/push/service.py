@@ -236,3 +236,42 @@ class PushTriggers:
                 body="合作 ID: COOP-" + str(cooperation.id),
                 data={"type": "handshaked", "cooperation_id": str(cooperation.id)},
             )
+
+    async def on_invitation_reminder(self, invitation) -> None:
+        """邀请即将超时（C3）：通知卖方（还剩 2h 提醒一次）。"""
+        # 算剩余时间
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        exp = invitation.expired_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        hours_left = max(0, (exp - now).total_seconds() / 3600)
+
+        await self.service.push_to_user(
+            user_id=invitation.seller_id,
+            title="⏰ 邀请即将超时",
+            body=f"还剩 {hours_left:.1f} 小时，请尽快响应",
+            data={"type": "invitation_reminder", "invitation_id": str(invitation.id)},
+            priority=PushPriority.HIGH,
+        )
+
+    async def on_proposal_reminder(self, invitation) -> None:
+        """方案即将超时（C3）：通知买方（还剩 30min 提醒一次）。"""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        deadline = invitation.proposal_deadline
+        if not deadline:
+            return  # 安全兜底
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        minutes_left = max(0, (deadline - now).total_seconds() / 60)
+
+        await self.service.push_to_user(
+            user_id=invitation.buyer_id,
+            title="⏰ 方案即将超时",
+            body=f"还剩 {minutes_left:.0f} 分钟，请尽快确认或拒绝",
+            data={"type": "proposal_reminder", "invitation_id": str(invitation.id)},
+            priority=PushPriority.HIGH,
+        )

@@ -67,6 +67,10 @@ class Invitation(Base, TimestampMixin, SoftDeleteMixin):
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     proposal_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # 超时提醒标记（C3：scheduler 用，避免重复推送）
+    invitation_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    proposal_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     # 拒绝原因（可选）
     reject_reason: Mapped[str | None] = mapped_column(String(256))
 
