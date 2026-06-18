@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.agents.beike_parser import parse_beike_url
 from app.agents.llm_client import (
     analyze_review,
     explain_recommendation,
@@ -12,11 +13,15 @@ from app.agents.llm_client import (
     get_budget_status,
     llm_client,
 )
+from app.core.errors import ValidationError
+from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import APIResponse
 
 router = APIRouter(prefix="/ai", tags=["AI 能力"])
+
+logger = get_logger(__name__)
 
 
 # ============== 请求模型 ==============
@@ -41,6 +46,12 @@ class ReviewAnalyzeRequest(BaseModel):
 
     rating: int
     comment: str | None = None
+
+
+class BeikeUrlRequest(BaseModel):
+    """贝壳链接解析请求（[D-009] MVP：仅 URL 校验）。"""
+
+    url: str
 
 
 # ============== 接口 ==============
@@ -74,6 +85,36 @@ async def api_analyze_review(
     """AI 检测评价是否异常（刷分/恶意/模板化）。"""
     result = await analyze_review(body.rating, body.comment)
     return APIResponse(data=result)
+
+
+@router.post("/parse-beike-url", summary="解析贝壳链接（[D-009] MVP 降级：仅 URL 校验）")
+async def api_parse_beike_url(
+    body: BeikeUrlRequest,
+    user: User = Depends(get_current_user),
+) -> APIResponse[dict]:
+    """MVP 不调 LLM 解析页面内容，仅做 URL 格式校验 + 房源 ID 提取。
+
+    决策依据 [D-009]：
+    - 贝壳反爬（Cloudflare）+ 法律风险 → 不做 HTTP HEAD/GET
+    - 官方 API 不开放 → 不做内容抓取
+    - 用户手动粘贴 URL 即可 → APP 端拿到 URL 后可展示预览
+
+    二期：合规渠道打通后接入 LLM 解析页面内容。
+    """
+    result = parse_beike_url(body.url)
+    logger.info(
+        "Beike URL parsed",
+        extra={
+            "user_id": user.id,
+            "valid": result.valid,
+            "url_type": result.url_type,
+            "city": result.city,
+        },
+    )
+    if not result.valid:
+        # 失败时抛 ValidationError 让 APP 端统一错误处理
+        raise ValidationError(result.reason or "链接格式无效")
+    return APIResponse(data=result.to_dict())
 
 
 @router.get("/budget", summary="LLM 月度预算状态")
