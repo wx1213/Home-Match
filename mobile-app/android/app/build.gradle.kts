@@ -5,6 +5,8 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // C5: Firebase 插件（google-services.json 由插件读取）
+    id("com.google.gms.google-services")
 }
 
 // ============================================================
