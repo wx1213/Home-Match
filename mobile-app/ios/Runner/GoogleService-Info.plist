@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  C4 占位 GoogleService-Info.plist
+	  ⚠️  dev 同学必须用真实 Firebase 控制台下载的文件替换此文件：
+	  1. Firebase Console → Project Settings → Your apps → iOS app
+	  2. 输入 bundle ID: cn.hmatch.app
+	  3. 下载 GoogleService-Info.plist
+	  4. 替换本文件（路径不变）
+	  5. pod install
+
+	  当前占位值（让 build 通过；Firebase init 会在 runtime 失败 → app fallback 到本地通知）
+	-->
+	<key>CLIENT_ID</key>
+	<string>placeholder-ios-client-id.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.placeholder-ios-client-id</string>
+	<key>API_KEY</key>
+	<string>PLACEHOLDER_API_KEY_REPLACE_ME</string>
+	<key>GCM_SENDER_ID</key>
+	<string>000000000000</string>
+	<key>PROJECT_ID</key>
+	<string>homematch-dev-placeholder</string>
+	<key>STORAGE_BUCKET</key>
+	<string>homematch-dev-placeholder.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<false/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<false/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:000000000000:ios:0000000000000000000000</string>
+	<key>BUNDLE_ID</key>
+	<string>cn.hmatch.app</string>
+	<key>DATABASE_URL</key>
+	<string>https://homematch-dev-placeholder.firebaseio.com</string>
+</dict>
+</plist>
