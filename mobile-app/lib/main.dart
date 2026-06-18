@@ -21,7 +21,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/auth/auth_event_bus.dart';
 import 'core/env/app_env.dart';
+import 'core/push/push_service.dart';
 import 'core/router/app_router.dart';
 import 'core/network/dio_client.dart';
 import 'features/auth/auth_service.dart';
@@ -41,6 +43,11 @@ Future<void> main() async {
   }
 
   final container = ProviderContainer();
+
+  // C6: 初始化 PushService（必须在 runApp 之前）
+  // - 内部 try/catch Firebase init，dev 无凭证时静默
+  // - 监听 authEventBus：login 触发设备注册
+  await container.read(pushServiceProvider).init();
 
   // P2-3：dev 自动登录守卫
   // - AppEnv.enableDevLogin = true（默认 dev）：走原自动登录流程
@@ -83,6 +90,8 @@ Future<void> _doLogin(ProviderContainer container, String code) async {
         );
     // 关键：登录成功后恢复登录态（防止 401 跳登录后用 dev code 切回被困在登录页）
     container.read(isLoggedInProvider.notifier).state = true;
+    // C6: 触发 AuthEvent.login 事件 → PushService 注册 FCM device
+    container.read(authEventBusProvider).emit(AuthEvent.login);
     _currentDevCode = code;
   } catch (_) {
     // ignore: avoid blocking UI on auto-login failure

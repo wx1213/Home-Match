@@ -13,6 +13,9 @@ class AuthEvent {
   const AuthEvent({required this.forceLogout, this.reason});
 
   static const logout = AuthEvent(forceLogout: true);
+
+  /// C6 引入：登录成功事件（PushService 监听 → 注册 FCM device）
+  static const login = AuthEvent(forceLogout: false);
 }
 
 /// 全局事件总线（用 ChangeNotifier 实现，让 go_router 也能监听）
