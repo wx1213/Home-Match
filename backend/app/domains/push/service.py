@@ -173,7 +173,21 @@ class PushService:
                 if ok:
                     success_count += 1
             except Exception as e:
-                # provider 抛异常不能让业务回滚；仅记录
+                # C7: FCM token 永久失效（APP 卸载 / token 过期）→ 删 device
+                # 用 duck-typing 检查异常类型（避免循环 import InvalidPushTokenError）
+                if e.__class__.__name__ == "InvalidPushTokenError":
+                    logger.warning(
+                        "Invalid FCM token, deleting device",
+                        extra={
+                            "user_id": user_id,
+                            "device_id": device.id,
+                            "err": str(e),
+                        },
+                    )
+                    self.db.delete(device)
+                    # 关键：device 已被标记删除，跳过后续的 last_active_at 更新
+                    continue
+                # provider 抛其他异常不能让业务回滚；仅记录
                 logger.exception(
                     "push_provider.send failed",
                     extra={"user_id": user_id, "device_id": device.id, "err": str(e)},
