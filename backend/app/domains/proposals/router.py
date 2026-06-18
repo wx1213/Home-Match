@@ -18,6 +18,7 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
 from app.domains.invitations.state_machine import InvitationStateMachine
+from app.domains.push.service import PushTriggers
 from app.models.invitation import Invitation
 from app.models.proposal import Proposal
 from app.models.user import User
@@ -81,6 +82,8 @@ async def submit_proposal(
     db.commit()
     db.refresh(proposal)
     logger.info("Proposal submitted", extra={"invitation_id": inv_id, "proposal_id": proposal.id})
+    # C1 接入：通知买方有方案
+    await PushTriggers(db).on_proposal_submitted(inv)
     return APIResponse(data=ProposalResponse.model_validate(proposal))
 
 

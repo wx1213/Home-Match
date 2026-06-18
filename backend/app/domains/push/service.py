@@ -85,7 +85,11 @@ class PushService:
         data: dict | None = None,
         priority: PushPriority = PushPriority.NORMAL,
     ) -> int:
-        """给用户的所有活跃设备发推送。返回成功数。"""
+        """给用户的所有活跃设备发推送。返回成功数。
+
+        注：push 失败不影响业务 - 任何 provider.send 抛异常都被 catch，
+        仅记日志。调用方应保证 push 在 db.commit() 之后调用。
+        """
         devices = self.db.scalars(
             select(Device).where(
                 Device.user_id == user_id,
@@ -95,17 +99,25 @@ class PushService:
 
         success_count = 0
         for device in devices:
-            ok = await push_provider.send(
-                token=device.fcm_token,
-                title=title,
-                body=body,
-                data=data or {},
-                priority=priority,
-            )
-            if ok:
-                success_count += 1
+            try:
+                ok = await push_provider.send(
+                    token=device.fcm_token,
+                    title=title,
+                    body=body,
+                    data=data or {},
+                    priority=priority,
+                )
+                if ok:
+                    success_count += 1
+            except Exception as e:
+                # provider 抛异常不能让业务回滚；仅记录
+                logger.exception(
+                    "push_provider.send failed",
+                    extra={"user_id": user_id, "device_id": device.id, "err": str(e)},
+                )
             device.last_active_at = datetime.utcnow()
 
+        # last_active_at 持久化（即使 push 全失败也提交）
         self.db.commit()
         logger.info(
             "Push sent to user",

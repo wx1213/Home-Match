@@ -22,6 +22,7 @@ from app.domains.invitations.state_machine import (
     INVITATION_TTL_HOURS,
     InvitationStateMachine,
 )
+from app.domains.push.service import PushTriggers
 from app.models.demand import Demand
 from app.models.invitation import Invitation, InvitationStatus
 from app.models.user import User
@@ -94,6 +95,8 @@ async def create_invitation(
         "Invitation created",
         extra={"invitation_id": invitation.id, "demand_id": body.demand_id, "seller_id": body.seller_id},
     )
+    # C1 接入：通知卖方有新邀请（push 失败不影响业务）
+    await PushTriggers(db).on_new_invitation(invitation)
     return APIResponse(data=InvitationResponse.model_validate(invitation))
 
 
@@ -173,6 +176,9 @@ async def accept_invitation(
     db.commit()
     db.refresh(inv)
     logger.info("Invitation accepted", extra={"invitation_id": inv.id})
+
+    # C1 接入：通知买方卖方已接单
+    await PushTriggers(db).on_invitation_accepted(inv)
 
     return APIResponse(
         data=InvitationAcceptResponse(

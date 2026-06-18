@@ -17,6 +17,7 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.domains.auth.dependencies import get_current_user
 from app.domains.invitations.state_machine import InvitationStateMachine
+from app.domains.push.service import PushTriggers
 from app.models.cooperation import Cooperation, CooperationStatus
 from app.models.invitation import Invitation
 from app.models.proposal import Proposal
@@ -81,6 +82,8 @@ async def confirm_proposal(
     db.commit()
     db.refresh(cooperation)
     logger.info("Cooperation created (handshake)", extra={"cooperation_id": cooperation.id})
+    # C1 接入：通知双方握手成功
+    await PushTriggers(db).on_handshake(cooperation)
     return APIResponse(data=CooperationResponse.model_validate(cooperation))
 
 
