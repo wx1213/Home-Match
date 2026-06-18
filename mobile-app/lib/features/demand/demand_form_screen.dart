@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/beike_parse_service.dart';
+import '../../core/widgets/paste_link_button.dart';
 import 'demand_service.dart';
 
 class DemandFormScreen extends ConsumerStatefulWidget {
@@ -19,6 +21,8 @@ class _DemandFormScreenState extends ConsumerState<DemandFormScreen> {
   final _districtCtl = TextEditingController();
   final _priceMinCtl = TextEditingController(text: '350');
   final _priceMaxCtl = TextEditingController(text: '450');
+  final _sourceUrlCtl = TextEditingController(); // P0 任务 1：贝壳链接
+  BeikeParseResult? _parsedBeike;                // 解析后的预览数据
   String _qualification = '首套';
   final _layouts = <String>{'3室1厅'};
   final _viewingTime = <String>{'工作日晚上', '周末'};
@@ -31,6 +35,7 @@ class _DemandFormScreenState extends ConsumerState<DemandFormScreen> {
     _districtCtl.dispose();
     _priceMinCtl.dispose();
     _priceMaxCtl.dispose();
+    _sourceUrlCtl.dispose();
     super.dispose();
   }
 
@@ -56,6 +61,9 @@ class _DemandFormScreenState extends ConsumerState<DemandFormScreen> {
             layouts: _layouts.toList(),
             qualification: _qualification,
             viewingTime: _viewingTime.toList(),
+            sourceUrl: _sourceUrlCtl.text.trim().isEmpty
+                ? null
+                : _sourceUrlCtl.text.trim(),
           );
       if (mounted) context.pop();
     } catch (e) {
@@ -77,6 +85,30 @@ class _DemandFormScreenState extends ConsumerState<DemandFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ====== P0 任务 1：贝壳链接粘贴入口 ======
+              PasteLinkButton(
+                onParsed: (url, result) {
+                  setState(() {
+                    _sourceUrlCtl.text = url;
+                    _parsedBeike = result;
+                  });
+                },
+              ),
+              if (_parsedBeike != null) ...[
+                const SizedBox(height: 8),
+                BeikePreviewCard(
+                  url: _sourceUrlCtl.text,
+                  result: _parsedBeike!,
+                  onClear: () {
+                    setState(() {
+                      _sourceUrlCtl.clear();
+                      _parsedBeike = null;
+                    });
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
+
               TextFormField(
                 controller: _districtCtl,
                 decoration: const InputDecoration(
