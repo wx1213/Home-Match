@@ -2,6 +2,12 @@
 
 MVP 阶段：抽象接口 + Mock 实现。
 二期：对接 firebase-admin SDK 真正发推送。
+
+provider 选型（C2 引入）：
+- 启动时检测 `secrets/firebase-service-account.json` 是否存在
+  - 存在 + 解析成功 → FirebasePushProvider（真实 FCM 推送）
+  - 否则 → MockPushProvider（仅日志，dev 友好）
+- 切换无侵入：仅 push_provider 全局变量变化
 """
 
 from __future__ import annotations
@@ -9,10 +15,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.device import Device
 
@@ -67,8 +75,63 @@ class MockPushProvider(PushProvider):
         return True
 
 
-# MVP 用 mock，二期换成 FirebasePushProvider
-push_provider: PushProvider = MockPushProvider()
+def _select_provider() -> PushProvider:
+    """启动时决定用 Firebase 还是 Mock。
+
+    规则（dev 友好）：
+    - 凭证文件不存在 → Mock + log warn（让 dev 同学不配也能跑）
+    - 凭证存在但 firebase-admin 初始化失败 → Mock + log warn（凭据过期等情况）
+    - 都 OK → Firebase
+
+    注意：凭证路径是相对路径（settings 存的是 ./secrets/...），需 resolve 到绝对路径再判断。
+    """
+    cred_path_str = settings.firebase_credentials_path
+    if not cred_path_str:
+        logger.info("push: no firebase_credentials_path configured, using Mock")
+        return MockPushProvider()
+
+    cred_path = Path(cred_path_str)
+    if not cred_path.is_absolute():
+        # 相对路径相对于 backend 工作目录（CWD）；resolve 成绝对路径再判断
+        cred_path = cred_path.resolve()
+
+    if not cred_path.exists():
+        logger.info(
+            "push: Firebase credentials not found at %s, using Mock (dev mode)",
+            cred_path,
+        )
+        return MockPushProvider()
+
+    try:
+        from .firebase_provider import FirebasePushProvider
+
+        logger.info("push: Firebase provider selected (credentials: %s)", cred_path)
+        return FirebasePushProvider(credentials_path=str(cred_path))
+    except Exception as e:
+        # 凭据文件存在但解析/初始化失败（如 service account 过期、APNs key 未配）
+        logger.warning(
+            "push: Firebase init failed (%s), falling back to Mock",
+            str(e),
+        )
+        return MockPushProvider()
+
+
+# 懒加载：模块 import 时不初始化（避免 logging 未配置前 log 被吞）
+# 第一次 push 时才选 provider
+_push_provider_instance: PushProvider | None = None
+
+
+def get_push_provider() -> PushProvider:
+    """懒加载获取 push provider。第一次调用时选型 + 写 log。"""
+    global _push_provider_instance
+    if _push_provider_instance is None:
+        _push_provider_instance = _select_provider()
+    return _push_provider_instance
+
+
+# 兼容旧引用（push_to_user 内部用）—— 用 property 形式不可行，改为函数调用
+# push_provider 仅作为类型注解占位，运行时通过 get_push_provider() 获取
+push_provider: PushProvider = MockPushProvider()  # 占位，实际不用
 
 
 class PushService:
@@ -100,7 +163,7 @@ class PushService:
         success_count = 0
         for device in devices:
             try:
-                ok = await push_provider.send(
+                ok = await get_push_provider().send(
                     token=device.fcm_token,
                     title=title,
                     body=body,
